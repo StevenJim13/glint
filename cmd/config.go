@@ -1,5 +1,4 @@
-The MIT License (MIT)
-
+/*
 Copyright © 2024 clarkmonkey@163.com
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,3 +18,24 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+*/
+package cmd
+
+import (
+	"github.com/spf13/cobra"
+	"github.com/stkali/glint/config"
+	"github.com/stkali/utility/tool"
+)
+
+// configCmd represents the config command
+var configCmd = &cobra.Command{
+	Use:   "config",
+	Short: "A brief description of your command",
+	Run: func(cmd *cobra.Command, args []string) {
+		tool.CheckError("failed to generate config file", config.Configure(configFile))
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(configCmd)
+}

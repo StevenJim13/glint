@@ -1,0 +1,29 @@
+version: 0.1.0
+concurrecy: 1024
+loglevel: info
+logfile: ""
+warningdisable: false
+resultformat: cmd
+disabletags: []
+languages:
+  - name: C/C++
+    options: {}
+    extends:
+      - .c
+      - .h
+      - .cpp
+      - .hpp
+      - .cxx
+    models:
+      - name: SensitiveApi
+        tags:
+          - basic
+        options: {}
+      - name: FileBasic
+        tags:
+          - basic
+        options:
+          charset: utf-8
+          maxLineLength: 120
+          maxLines: 1200
+          newLine: \n
