@@ -22,9 +22,15 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"io"
+	"os"
+
 	"github.com/spf13/cobra"
 	"github.com/stkali/glint/config"
-	"github.com/stkali/utility/tool"
+	"github.com/stkali/glint/models"
+	"github.com/stkali/glint/utils"
+	"github.com/stkali/utility/errors"
+	"gopkg.in/yaml.v3"
 )
 
 // configCmd represents the config command
@@ -32,10 +38,86 @@ var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "A brief description of your command",
 	Run: func(cmd *cobra.Command, args []string) {
-		tool.CheckError("failed to generate config file", config.Configure(configFile))
+		errors.CheckErr(Configure(configFile))
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(configCmd)
+}
+
+// Configure ...
+func Configure(configPath string) error {
+	var writer io.Writer
+	if configPath == "" {
+		writer = os.Stdout
+	} else {
+		f, err := os.OpenFile(configPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.ModePerm)
+		if err != nil {
+			return errors.Newf("failed to create glint config file at: %q, err: %s", configPath, err)
+		}
+		defer f.Close()
+		writer = f
+	}
+	return configure(writer)
+}
+
+// configure ...
+func configure(writer io.Writer) error {
+
+	conf, err := generateDefaultConfig()
+	if err != nil {
+		return err
+	}
+	enc := yaml.NewEncoder(writer)
+	enc.SetIndent(2)
+	defer enc.Close()
+	err = enc.Encode(conf)
+	if err != nil {
+		return errors.Newf("failed to serialized config to yaml, err: %s", err)
+	}
+	return nil
+}
+
+// generateDefaultConfig ...
+func generateDefaultConfig() (*config.Config, error) {
+
+	conf := &config.Config{
+		Version:        config.Version,
+		Concurrecy:     1024,
+		LogLevel:       "error",
+		LogFile:        "",
+		WarningDisable: false,
+		ResultFormat:   "cmd",
+	}
+	modelSet := models.ExportAllModels()
+	conf.Languages = make([]config.Language, 0, len(modelSet))
+	for lang, modelList := range modelSet {
+
+		modelCount := len(modelList)
+		if modelCount == 0 {
+			continue
+		}
+
+		exts, err := utils.Extends(lang)
+		if err != nil {
+			return nil, err
+		}
+
+		language := config.Language{
+			Name:    lang.String(),
+			Extends: exts,
+			Models:  make([]config.Model, 0, modelCount),
+		}
+		for _, model := range modelList {
+			confMod := config.Model{
+				Name:    model.Name,
+				Tags:    model.Tags,
+				Options: model.Options,
+			}
+			language.Models = append(language.Models, confMod)
+		}
+		conf.Languages = append(conf.Languages, language)
+	}
+	return conf, nil
 }

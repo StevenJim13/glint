@@ -1,6 +1,10 @@
-package util
+package utils
 
-import "github.com/stkali/utility/errors"
+import (
+	"strings"
+
+	"github.com/stkali/utility/errors"
+)
 
 type Language int
 
@@ -12,7 +16,8 @@ func(l Language) String () string {
 }
 
 const (
-	CCpp Language = iota
+	Unknown Language = iota
+	CCpp
 	Rust
 	Go 
 	Python
@@ -21,7 +26,6 @@ const (
 	CSharp
 	Ruby
 	Perl
-	Unknown
 )
 
 var langLabels = []string{
@@ -55,3 +59,27 @@ func Extends(lang Language) ([]string, error) {
 	return extendsTable[lang], nil
 }
 
+func ToLanguage(name string) Language {
+	
+	switch strings.ToLower(name) {
+	case "c", "c++", "c/c++", "cpp":
+		return CCpp
+	case "rust", "rt":
+		return Rust
+	case "go", "golang":
+		return Go
+	case "py", "python", "python3":
+		return Python
+	case "java":
+		return Java
+	case "js", "javascript":
+		return JavaScript
+	case "c#", "csharp":
+		return CSharp
+	case "ruby", "rb":
+		return Ruby
+	case "perl", "pl":
+		return Perl
+	}
+	return Unknown
+}

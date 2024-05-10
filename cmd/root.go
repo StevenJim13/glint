@@ -22,9 +22,8 @@ THE SOFTWARE.
 package cmd
 
 import (
-	"os"
-
 	"github.com/spf13/cobra"
+	"github.com/stkali/utility/errors"
 )
 
 var configFile string
@@ -37,12 +36,9 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		os.Exit(1)
-	}
+	errors.CheckErr(rootCmd.Execute())
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&configFile, "config-file", "c", "", "specify config file path")
+	rootCmd.PersistentFlags().StringVarP(&configFile, "config-file", "f", "", "specify config file path")
 }

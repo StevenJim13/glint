@@ -1,15 +1,7 @@
 package config
 
 import (
-	"fmt"
-	"io"
-	"os"
-
-	"github.com/stkali/glint/models"
-	"github.com/stkali/glint/util"
 	"github.com/stkali/utility/errors"
-	"github.com/stkali/utility/tool"
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -18,12 +10,8 @@ const (
 )
 
 func init() {
-	errors.SetWarningPrefix(fmt.Sprintf("%s warning:", Program))
-	tool.SetErrorPrefix(fmt.Sprintf("%s error:", Program))
-}
-
-func IsCompatible(newVersion, oldVersion string) bool {
-	return true
+	errors.SetWarningPrefixf("%s warning", Program)
+	errors.SetErrPrefixf("%s error", Program)
 }
 
 type Config struct {
@@ -39,83 +27,52 @@ type Config struct {
 	Languages      []Language `mapstructure:"languages"`
 }
 
-func (c *Config) Validate() error {
+// NewConfig ...
+func NewConfig() *Config {
+	return &Config{
+		LogLevel: "error",
+	}
+}
+
+// Validate ...
+func Validate(conf *Config) error {
+	if conf.Concurrecy < 1 {
+		return errors.Newf("inavlid concurrency:%q must be > 0", conf.Concurrecy)
+	}
+	if err := IsCompatible(conf.Version); err != nil {
+		return err
+	}
 	return nil
 }
 
-func NewConfig() *Config {
-	return &Config{Version: Version, LogLevel: "error"}
-}
-
-func Configure(configPath string) error {
-	var writer io.Writer
-	if configPath == "" {
-		writer = os.Stdout
-	} else {
-		f, err := os.OpenFile(configPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.ModePerm)
-		if err != nil {
-			return errors.Newf("failed to create glint config file at: %q, err: %s", configPath, err)
-		}
-		defer f.Close()
-		writer = f
-	}
-	return configure(writer)
-}
-
-func configure(writer io.Writer) error {
-
-	conf, err := generateDefaultConfig()
+// IsCopatible ...
+func IsCompatible(version string) error {
+	marjor, err := getMarjor(version)
 	if err != nil {
 		return err
 	}
-	enc := yaml.NewEncoder(writer)
-	enc.SetIndent(2)
-	defer enc.Close()
-	err = enc.Encode(conf)
-	if err != nil {
-		return errors.Newf("failed to serialized config to yaml, err: %s", err)
+	if marjor != Version[:len(marjor)] {
+		return errors.Newf("incompatible version: %q, please upgrade to %s", marjor, version)
 	}
 	return nil
 }
 
-func generateDefaultConfig() (*Config, error) {
+// getMarjor ...
+func getMarjor(version string) (string, error) {
 
-	conf := &Config{
-		Version:        Version,
-		Concurrecy:     1024,
-		LogLevel:       "info",
-		LogFile:        "",
-		WarningDisable: false,
-		ResultFormat:   "cmd",
+	if version == "" {
+		return "nil", errors.New("empty version number")
 	}
-	modelSet := models.ExportAllModels()
-	conf.Languages = make([]Language, 0, len(modelSet))
-	for lang, modelList := range modelSet {
 
-		modelCount := len(modelList)
-		if modelCount == 0 {
-			continue
-		}
-
-		exts, err := util.Extends(lang)
-		if err != nil {
-			return nil, err
-		}
-
-		language := Language{
-			Name:    lang.String(),
-			Extends: exts,
-			Models:  make([]Model, 0, modelCount),
-		}
-		for _, model := range modelList {
-			confMod := Model{
-				Name:    model.Name,
-				Tags:    model.Tags,
-				Options: model.Options,
+	for index, char := range version {
+		if char > '9' || char < '0' {
+			if index == 0 {
+				return "", errors.Newf("invalid version: %q", version)
 			}
-			language.Models = append(language.Models, confMod)
 		}
-		conf.Languages = append(conf.Languages, language)
+		return version[:index], nil
 	}
-	return conf, nil
+
+	// only marjor number
+	return version, nil
 }

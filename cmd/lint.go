@@ -22,18 +22,22 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"encoding/csv"
+	"strings"
+
+	"io/fs"
 	"os"
+	"strconv"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/stkali/glint/config"
 	"github.com/stkali/glint/glint"
 	"github.com/stkali/utility/errors"
-	"github.com/stkali/utility/log"
-	"github.com/stkali/utility/tool"
 	"gopkg.in/yaml.v3"
 )
 
-var c = config.NewConfig()
+const defaultConfigFile = "glint.yaml"
 
 // lintCmd represents the lint command
 var lintCmd = &cobra.Command{
@@ -46,38 +50,71 @@ var lintCmd = &cobra.Command{
 		} else {
 			project = args[0]
 		}
-		conf, err := getConfig()
-		tool.CheckError("failed get config, err: %s", err)
-		glint.Lint(conf, project)
+		conf, err := getConfig(cmd.Flags())
+		errors.CheckErr(err)
+		err = glint.Lint(conf, project)
+		errors.CheckErr(err)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(lintCmd)
-	// result form
-	lintCmd.Flags().StringVarP(&c.ResultFile, "result-format", "", "cmd", "specify glint report format")
-	// result file
-	lintCmd.Flags().StringVarP(&c.ResultFormat, "result-file", "", "", "specify glint report file")
-	// cocurrency
-	lintCmd.Flags().IntVarP(&c.Concurrecy, "concurrency", "", 1024, "specify number of glint concurrency checker goroutine")
-	lintCmd.Flags().StringArrayVarP(&c.ExcludeTags, "exclude-tags", "", nil, "specify enable tag")
-	lintCmd.Flags().StringArrayVarP(&c.ExcludeNames, "exclude-names", "", nil, "specify enable tag")
+	lintCmd.Flags().StringP("result-format", "", "cmd", "specify glint report format")
+	lintCmd.Flags().StringP("result-file", "", "", "specify glint report file")
+	lintCmd.Flags().IntP("concurrency", "c", 1024, "specify number of glint concurrency checker goroutine")
+	lintCmd.Flags().BoolP("disable-warning", "", false, "specify number of glint concurrency checker goroutine")
+	lintCmd.Flags().StringArrayP("exclude-tags", "", nil, "specify enable tag")
+	lintCmd.Flags().StringArrayP("exclude-names", "", nil, "specify enable tag")
 }
 
-func getConfig() (*config.Config, error) {
-	
-	fd, err := os.OpenFile(configFile, os.O_RDONLY, os.ModePerm)
-	if err != nil {
-		return nil, errors.Newf("failed to read config file: %s, err: %s", configFile, err)
+// getConfig ...
+func getConfig(flags *pflag.FlagSet) (*config.Config, error) {
+
+	if configFile == "" {
+		configFile = defaultConfigFile
 	}
-	
+
+	fd, err := os.OpenFile(configFile, os.O_RDONLY, os.ModePerm)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, errors.Newf("not found config file: %q", configFile)
+	}
+	if err != nil {
+		return nil, errors.Newf("failed to read config file: %q, err: %s", configFile, err)
+	}
+
 	dec := yaml.NewDecoder(fd)
 	conf := config.NewConfig()
 	if err = dec.Decode(conf); err != nil {
 		return nil, errors.Newf("failed to unserialize config-file:%q, err: %s", configFile, err)
 	}
-	
-	rootCmd.Commands()
-	log.Info(lintCmd.Flags().GetString("result-format"))
-	return conf, nil
+
+	var nerr error
+	flags.Visit(func(p *pflag.Flag) {
+		switch p.Name {
+		case "concurrency":
+			conf.Concurrecy, nerr = strconv.Atoi(p.Value.String())
+		case "result-format":
+			conf.ResultFormat = p.Value.String()
+		case "result-file":
+			conf.ResultFile = p.Value.String()
+		case "disable-warning":
+			conf.WarningDisable, nerr = strconv.ParseBool(p.Value.String())
+		case "exclude-tags":
+			conf.ExcludeTags, nerr = parseStringSlice(p.Value.String())
+		case "exclude-names":
+			conf.ExcludeNames, nerr = parseStringSlice(p.Value.String())
+		}
+		err = errors.Join(err, nerr)
+	})
+	return conf, err
+}
+
+func parseStringSlice(s string) ([]string, error) {
+	p := s[1 : len(s)-1]
+	if p == "" {
+		return []string{}, nil
+	}
+	stringReader := strings.NewReader(p)
+	csvReader := csv.NewReader(stringReader)
+	return csvReader.Read()
 }

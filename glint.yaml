@@ -1,10 +1,12 @@
-version: 0.1.0
+version: "2"
 concurrecy: 1024
-loglevel: info
+loglevel: debug
 logfile: ""
 warningdisable: false
+resultfile: ""
 resultformat: cmd
-disabletags: []
+excludetags: []
+excludenames: []
 languages:
   - name: C/C++
     options: {}
