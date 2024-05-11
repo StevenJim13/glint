@@ -15,16 +15,16 @@ func init() {
 }
 
 type Config struct {
-	Version        string     `mapstructure:"version"`
-	Concurrecy     int        `mapstructure:"concurrency"`
-	LogLevel       string     `mapstructure:"logLevel"`
-	LogFile        string     `mapstructure:"logFile"`
-	WarningDisable bool       `mapstructure:"warningDisable"`
-	ResultFile     string     `mapstructure:"resultFile"`
-	ResultFormat   string     `mapstructure:"resultFormat"`
-	ExcludeTags    []string   `mapstructure:"excludeTags`
-	ExcludeNames   []string   `mapstructure:"excludeNames`
-	Languages      []Language `mapstructure:"languages"`
+	Version        string      `yaml:"version"`
+	Concurrecy     int         `yaml:"concurrency"`
+	LogLevel       string      `yaml:"logLevel"`
+	LogFile        string      `yaml:"logFile"`
+	WarningDisable bool        `yaml:"warningDisable"`
+	ResultFile     string      `yaml:"resultFile"`
+	ResultFormat   string      `yaml:"resultFormat"`
+	ExcludeTags    []string    `yaml:"excludeTags`
+	ExcludeNames   []string    `yaml:"excludeNames`
+	Languages      []*Language `yaml:"languages"`
 }
 
 // NewConfig ...
@@ -37,7 +37,7 @@ func NewConfig() *Config {
 // Validate ...
 func Validate(conf *Config) error {
 	if conf.Concurrecy < 1 {
-		return errors.Newf("inavlid concurrency:%q must be > 0", conf.Concurrecy)
+		return errors.Newf("inavlid concurrency:%d must be > 0", conf.Concurrecy)
 	}
 	if err := IsCompatible(conf.Version); err != nil {
 		return err

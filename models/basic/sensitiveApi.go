@@ -1,9 +1,10 @@
-package c
+package basic
 
 import (
 	"fmt"
-
+	
 	"github.com/stkali/glint/models"
+	"github.com/stkali/glint/parser"
 )
 
 var (
@@ -17,7 +18,7 @@ var SensitiveApi = models.Model{
 			"foo", "bar",
 		},
 	},
-	ModelFunc: func(model *models.Model, ctx models.Context) {
+	ModelFunc: func(model *models.Model, ctx parser.Context) {
 
 		sensitiveFuncs, ok := model.Options[sensitiveKey]
 		if !ok {

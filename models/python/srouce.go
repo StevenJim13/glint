@@ -1,4 +1,4 @@
-package c
+package python
 
 import (
 	"os"

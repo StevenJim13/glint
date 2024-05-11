@@ -19,13 +19,19 @@ const (
 	Unknown Language = iota
 	CCpp
 	Rust
-	Go 
+	GoLang
 	Python
 	Java
 	JavaScript
 	CSharp
 	Ruby
 	Perl
+	Shell
+	Markdown
+	Dockerfile
+	YAML 
+	Makefile
+	maxLang
 )
 
 var langLabels = []string{
@@ -37,6 +43,12 @@ var langLabels = []string{
 	"JavaScript",
 	"CSharp",
 	"Ruby",
+	"Perl",
+	"Shell",
+	"Markdown",
+	"Dockerfile",
+	"YAML",
+	"Makefile",
 }
 
 var extendsTable = [][]string{
@@ -49,11 +61,16 @@ var extendsTable = [][]string{
 	{".cs"},
 	{".rb"},
 	{".pl"},
+	{".sh"},
+	{".md"},
+	{""},
+	{".yaml"},
+	{""},
 }
 
 
 func Extends(lang Language) ([]string, error) {
-	if lang < CCpp || lang >= Unknown {
+	if lang < CCpp || lang >= maxLang {
 		return nil, errors.Newf("invalid language: %s", lang)
 	}
 	return extendsTable[lang], nil
@@ -67,7 +84,7 @@ func ToLanguage(name string) Language {
 	case "rust", "rt":
 		return Rust
 	case "go", "golang":
-		return Go
+		return GoLang
 	case "py", "python", "python3":
 		return Python
 	case "java":

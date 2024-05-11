@@ -2,11 +2,17 @@ package glint
 
 import (
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/stkali/glint/config"
+	"github.com/stkali/glint/models"
 	_ "github.com/stkali/glint/models/c"
+	_ "github.com/stkali/glint/models/golang"
+	_ "github.com/stkali/glint/models/python"
+	"github.com/stkali/glint/parser"
 	"github.com/stkali/utility/errors"
 	"github.com/stkali/utility/log"
 )
@@ -41,7 +47,6 @@ func setEnv(conf *config.Config) error {
 
 // Lint ...
 func Lint(conf *config.Config, project string) error {
-
 	// init environment
 	if err := setEnv(conf); err != nil {
 		return err
@@ -49,10 +54,47 @@ func Lint(conf *config.Config, project string) error {
 	// 清理 exclude 规则
 	cleanModels(conf)
 	// 生成规则集
-	makeModelSet(conf.Languages)
+	manager, err := models.NewModelManager(conf.Languages)
+	if err != nil {
+		return errors.Newf("failed to create ModelManager, err: %s", err)
+	}
 
+	linter, err := NewLinter(manager)
+	if err != nil {
+		return err
+	}
+	return linter.Lint(project)
+}
 
+// Linter ...
+type Linter struct {
+	models []*models.Model
+	parser parser.Parser
+	ctxCh chan parser.Context
+}
+
+// Lint 
+func (l *Linter) Lint(project string) error {
+
+	// 解析文件
+	if err := l.parser.Parse(project, <-l.ctxCh); err != nil {
+		return errors.Newf("failed to parse project: %q, err: %s", project)
+	}
 	return nil
+}
+
+func skipPath(path string) bool {
+	return strings.HasPrefix(path, ".git")
+}
+
+func NewLinter(manager *models.ModelManager) (*Linter, error) {
+	
+	linter := &Linter{
+		ctxCh: make(chan parser.Context, 1),
+		parser: &parser.LangParser{},
+	}
+	
+	return linter, nil
 }
 
 // cleanModels 清除那些无用的数据源

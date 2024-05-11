@@ -1,4 +1,4 @@
-package c
+package golang
 
 import (
 	"github.com/stkali/utility/log"
@@ -9,11 +9,11 @@ import (
 )
 
 func init() {
-	if err := models.InjectModels(utils.CCpp,
+	if err := models.InjectModels(utils.GoLang,
 		&basic.SensitiveApi,
 		&basic.FileBasic,
 	); err != nil {
 		panic(err)
 	}
-	log.Debugf("successfully injected %s models", utils.CCpp)
+	log.Debugf("successfully injected %s models", utils.GoLang)
 }

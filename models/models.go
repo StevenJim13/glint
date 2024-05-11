@@ -1,11 +1,11 @@
 package models
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/stkali/glint/config"
 	"github.com/stkali/glint/utils"
+	"github.com/stkali/glint/parser"
 	"github.com/stkali/utility/errors"
 	// "github.com/stkali/utility/log"
 )
@@ -48,51 +48,7 @@ type Model struct {
 	ModelFunc ModelFuncType
 }
 
-// Context file content
-type Context interface {
-	// Content returns file content
-	Content() []byte
-	// AddDefect adds a defect to
-	AddDefect(defect Defect)
-	// LinesInfo returns line information of file
-	LinesInfo() LinesInfo
-	// Functions returns all function define AST node(s) of file
-	Functions() []*Function
-	// CallExpresses returns all callexpression node(s) of file
-	CallExpresses() []*CallExpress
-}
-
-type Function struct {
-	Name   string
-	Return string
-}
-
-type CallExpress struct {
-	Function *Function
-}
-
-type LinesInfo [][2]uint
-
-func (l LinesInfo) String() string {
-	return fmt.Sprintf("<LinesInfo(%d)>", len(l))
-}
-
-func (l LinesInfo) Lines() int {
-	return len(l)
-}
-
-func (l LinesInfo) Range(f func(line [2]uint) bool) {
-	for index := range l {
-		if !f(l[index]) {
-			return
-		}
-	}
-}
-
-type Defect interface {
-}
-
-type ModelFuncType func(model *Model, ctx Context)
+type ModelFuncType func(model *Model, ctx parser.Context)
 
 type langManager struct {
 	sync.Mutex
@@ -148,3 +104,11 @@ func LoadModels(lang config.Language) ([]*Model, error) {
 	}
 	return modelList, nil
 }
+
+type ModelManager struct {
+
+}
+
+func NewModelManager (languages []*config.Language) (*ModelManager, error) {
+	return &ModelManager{}, nil
+} 

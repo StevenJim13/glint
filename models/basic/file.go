@@ -1,10 +1,10 @@
-package c
+package basic
 
 import (
 	"fmt"
-
 	"github.com/stkali/glint/models"
 	"github.com/stkali/glint/utils"
+	"github.com/stkali/glint/parser"
 	"github.com/stkali/utility/log"
 )
 
@@ -25,7 +25,7 @@ var FileBasic = models.Model{
 		maxLineLengthKey: 120,
 		newLineKey:       "\\n",
 	},
-	ModelFunc: func(model *models.Model, ctx models.Context) {
+	ModelFunc: func(model *models.Model, ctx parser.Context) {
 
 		var ctt []byte
 		// verify charset
@@ -37,7 +37,7 @@ var FileBasic = models.Model{
 			}
 		}
 
-		var info models.LinesInfo
+		var info parser.LinesInfo
 
 		// verify MaxLine
 		if value, ok := model.Options[maxLinesKey]; ok {

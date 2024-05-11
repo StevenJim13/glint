@@ -34,6 +34,7 @@ import (
 	"github.com/stkali/glint/config"
 	"github.com/stkali/glint/glint"
 	"github.com/stkali/utility/errors"
+	"github.com/stkali/utility/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -53,6 +54,9 @@ var lintCmd = &cobra.Command{
 		conf, err := getConfig(cmd.Flags())
 		errors.CheckErr(err)
 		err = glint.Lint(conf, project)
+		if err != nil {
+			log.Error(err)
+		}
 		errors.CheckErr(err)
 	},
 }
