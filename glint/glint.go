@@ -3,10 +3,9 @@ package glint
 import (
 	"io"
 	"os"
-	"strconv"
+	"strings"
 
 	"github.com/stkali/glint/config"
-	"github.com/stkali/glint/models"
 	_ "github.com/stkali/glint/models/c"
 	"github.com/stkali/utility/errors"
 	"github.com/stkali/utility/log"
@@ -42,33 +41,52 @@ func setEnv(conf *config.Config) error {
 
 // Lint ...
 func Lint(conf *config.Config, project string) error {
+
+	// init environment
 	if err := setEnv(conf); err != nil {
 		return err
 	}
-	log.Infof("config: %+v", conf)
+	// 清理 exclude 规则
+	cleanModels(conf)
+	// 生成规则集
+	makeModelSet(conf.Languages)
 
-	
-	if len(conf.ExcludeNames) != 0 {
-
-	}
-
-	exclude := func(model config.Model) bool {
-		if model.Name 
-	}
-
-	// 加载检查模型
-	for _, lang := range conf.Languages {
-		if _, err := models.LoadModels(lang); err != nil {
-			return err
-		} else {
-
-		}
-		conf.ExcludeNames
-
-	}
-	// 逐个执行模型
-
-	//
 
 	return nil
+}
+
+// cleanModels 清除那些无用的数据源
+func cleanModels(conf *config.Config) {
+
+	existTag := func(tags []string) bool {
+		for index := range tags {
+			if exists(conf.ExcludeTags, tags[index]) {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, lang := range conf.Languages {
+		real := 0
+		for index := range lang.Models {
+			model := lang.Models[index]
+			if !exists(conf.ExcludeNames, model.Name) && !existTag(model.Tags) {
+				if index != real {
+					lang.Models[real] = model
+				}
+				real += 1
+			}
+		}
+		lang.Models = lang.Models[:real]
+	}
+}
+
+func exists(s []string, v string) bool {
+	for index := range s {
+		if s[index] == v {
+			return true
+		}
+	}
+	return false
 }

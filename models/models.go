@@ -139,11 +139,7 @@ func LoadModels(lang config.Language) ([]*Model, error) {
 		
 		if !ok {
 			return nil, errors.Newf("invalid %q language model: %q", language, modelConf.Name)
-		} 
-		
-		if modelConf.Name
-		
-		else {
+		} else {
 
 			model.Tags = modelConf.Tags
 			model.Options = modelConf.Options

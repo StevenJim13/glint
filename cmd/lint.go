@@ -63,8 +63,8 @@ func init() {
 	lintCmd.Flags().StringP("result-file", "", "", "specify glint report file")
 	lintCmd.Flags().IntP("concurrency", "c", 1024, "specify number of glint concurrency checker goroutine")
 	lintCmd.Flags().BoolP("disable-warning", "", false, "specify number of glint concurrency checker goroutine")
-	lintCmd.Flags().StringArrayP("exclude-tags", "", nil, "specify enable tag")
-	lintCmd.Flags().StringArrayP("exclude-names", "", nil, "specify enable tag")
+	lintCmd.Flags().StringSliceP("exclude-tags", "", nil, "specify enable tag")
+	lintCmd.Flags().StringSliceP("exclude-names", "", nil, "specify enable tag")
 }
 
 // getConfig ...

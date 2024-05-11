@@ -1,5 +1,7 @@
 package config
 
+import "fmt"
+
 type Language struct {
 	Name    string         `mapstructure:"name"`
 	Options map[string]any `mapstructure:"extends"`
@@ -11,4 +13,8 @@ type Model struct {
 	Name    string         `mapstructure:"name"`
 	Tags    []string         `mapstructure:"tags"`
 	Options map[string]any `mapstructure:"options"`
+}
+
+func (m Model) String() string {
+	return fmt.Sprintf("<Model: %s>", m.Name)
 }
