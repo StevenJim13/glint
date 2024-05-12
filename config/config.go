@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/stkali/utility/errors"
+	"github.com/stkali/utility/log"
 )
 
 const (
@@ -12,19 +13,25 @@ const (
 func init() {
 	errors.SetWarningPrefixf("%s warning", Program)
 	errors.SetErrPrefixf("%s error", Program)
+	errors.SetExitHandler(func(err error) {
+		log.Error(err)
+	})
 }
 
 type Config struct {
-	Version        string      `yaml:"version"`
-	Concurrecy     int         `yaml:"concurrency"`
-	LogLevel       string      `yaml:"logLevel"`
-	LogFile        string      `yaml:"logFile"`
-	WarningDisable bool        `yaml:"warningDisable"`
-	ResultFile     string      `yaml:"resultFile"`
-	ResultFormat   string      `yaml:"resultFormat"`
-	ExcludeTags    []string    `yaml:"excludeTags`
-	ExcludeNames   []string    `yaml:"excludeNames`
-	Languages      []*Language `yaml:"languages"`
+	Version        string   `yaml:"version"`
+	Concurrecy     int      `yaml:"concurrecy"`
+	LogLevel       string   `yaml:"logLevel"`
+	LogFile        string   `yaml:"logFile"`
+	WarningDisable bool     `yaml:"warningDisable"`
+	ResultFile     string   `yaml:"resultFile"`
+	ResultFormat   string   `yaml:"resultFormat"`
+	ExcludeTags    []string `yaml:"excludeTags`
+	ExcludeNames   []string `yaml:"excludeNames`
+	ExcludeDirs    []string `yaml:"excludeDirs"`
+	ExcludeFiles   []string `yaml:"excludeFiles"`
+
+	Languages []*Language `yaml:"languages"`
 }
 
 // NewConfig ...

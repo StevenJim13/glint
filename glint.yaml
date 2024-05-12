@@ -1,31 +1,35 @@
-version: "2"
+version: 0.1.0
 concurrecy: 1024
-loglevel: debug
-logfile: ""
-warningdisable: false
-resultfile: ""
-resultformat: cmd
+logLevel: info
+logFile: ""
+warningDisable: false
+resultFile: ""
+resultFormat: cmd
 excludetags: []
 excludenames: []
+excludeDirs:
+  - .*
+  - testdata
+excludeFiles:
+  - .*
 languages:
-  - name: C/C++
+  - name: Golang
     options: {}
     extends:
-      - .c
-      - .h
-      - .cpp
-      - .hpp
-      - .cxx
+      - .go
     models:
       - name: SensitiveApi
         tags:
           - basic
-        options: {}
+        options:
+          sensitives:
+            - foo
+            - bar
       - name: FileBasic
         tags:
           - basic
         options:
           charset: utf-8
-          maxLineLength: 120
+          maxLineLength: 10
           maxLines: 1200
           newLine: \n

@@ -1,6 +1,6 @@
 package utils
 
-func MatchNewChar(char string) uint {
+func MatchNewChar(char string) int {
 	switch char {
 	case "\\r":
 		return 0

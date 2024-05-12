@@ -4,9 +4,10 @@ import (
 	"sync"
 
 	"github.com/stkali/glint/config"
-	"github.com/stkali/glint/utils"
 	"github.com/stkali/glint/parser"
+	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/errors"
+	"github.com/stkali/utility/log"
 	// "github.com/stkali/utility/log"
 )
 
@@ -78,8 +79,8 @@ func (l *langManager) add(model *Model) error {
 }
 
 // LoadModels
-func LoadModels(lang config.Language) ([]*Model, error) {
-	
+func LoadModels(lang *config.Language) ([]*Model, error) {
+
 	language := utils.ToLanguage(lang.Name)
 	if language == utils.Unknown {
 		return nil, errors.Newf("unsupport language: %q", lang)
@@ -92,23 +93,17 @@ func LoadModels(lang config.Language) ([]*Model, error) {
 	modelList := make([]*Model, 0, len(lang.Models))
 	for _, modelConf := range lang.Models {
 		model, ok := langManager.ms[modelConf.Name]
-		
+
 		if !ok {
 			return nil, errors.Newf("invalid %q language model: %q", language, modelConf.Name)
 		} else {
-
+			log.Infof("model: %s", model)
+			log.Infof("modelConf: %s", modelConf.Options)
 			model.Tags = modelConf.Tags
 			model.Options = modelConf.Options
 			modelList = append(modelList, model)
+			log.Infof("model: %s", model)
 		}
 	}
 	return modelList, nil
 }
-
-type ModelManager struct {
-
-}
-
-func NewModelManager (languages []*config.Language) (*ModelManager, error) {
-	return &ModelManager{}, nil
-} 

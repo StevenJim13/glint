@@ -1,19 +1,27 @@
 package utils
 
 import (
+	"fmt"
 	"strings"
 
+	sitter "github.com/smacker/go-tree-sitter"
+	"github.com/smacker/go-tree-sitter/bash"
+	"github.com/smacker/go-tree-sitter/cpp"
+	"github.com/smacker/go-tree-sitter/csharp"
+	"github.com/smacker/go-tree-sitter/css"
+	"github.com/smacker/go-tree-sitter/dockerfile"
+	"github.com/smacker/go-tree-sitter/golang"
+	"github.com/smacker/go-tree-sitter/html"
+	"github.com/smacker/go-tree-sitter/java"
+	"github.com/smacker/go-tree-sitter/javascript"
+	"github.com/smacker/go-tree-sitter/python"
+	"github.com/smacker/go-tree-sitter/ruby"
+	"github.com/smacker/go-tree-sitter/rust"
+	"github.com/smacker/go-tree-sitter/yaml"
 	"github.com/stkali/utility/errors"
 )
 
 type Language int
-
-func(l Language) String () string {
-	if l > Unknown || l < CCpp {
-		return langLabels[Unknown]
-	}
-	return langLabels[l]
-}
 
 const (
 	Unknown Language = iota
@@ -22,33 +30,38 @@ const (
 	GoLang
 	Python
 	Java
-	JavaScript
 	CSharp
+	JavaScript
+	HTML
+	CSS
 	Ruby
-	Perl
-	Shell
-	Markdown
+	Bash
 	Dockerfile
-	YAML 
-	Makefile
+	YAML
 	maxLang
 )
 
-var langLabels = []string{
+var labelTable = []string{
 	"C/C++",
 	"Rust",
 	"Golang",
 	"Python",
 	"Java",
+	"Csharp",
 	"JavaScript",
-	"CSharp",
+	"HTML",
+	"CSS",
 	"Ruby",
-	"Perl",
-	"Shell",
-	"Markdown",
+	"Bash",
 	"Dockerfile",
 	"YAML",
-	"Makefile",
+}
+
+func (l Language) String() string {
+	if l >= maxLang || l <= Unknown {
+		return fmt.Sprintf("Unknown(%d)", l)
+	}
+	return labelTable[l]
 }
 
 var extendsTable = [][]string{
@@ -57,27 +70,25 @@ var extendsTable = [][]string{
 	{".go"},
 	{".py"},
 	{".java"},
-	{".js"},
 	{".cs"},
+	{".js"},
+	{".html"},
+	{".css"},
 	{".rb"},
-	{".pl"},
 	{".sh"},
-	{".md"},
 	{""},
 	{".yaml"},
-	{""},
 }
 
-
 func Extends(lang Language) ([]string, error) {
-	if lang < CCpp || lang >= maxLang {
+	if lang >= maxLang || lang <= Unknown {
 		return nil, errors.Newf("invalid language: %s", lang)
 	}
 	return extendsTable[lang], nil
 }
 
 func ToLanguage(name string) Language {
-	
+
 	switch strings.ToLower(name) {
 	case "c", "c++", "c/c++", "cpp":
 		return CCpp
@@ -89,14 +100,45 @@ func ToLanguage(name string) Language {
 		return Python
 	case "java":
 		return Java
-	case "js", "javascript":
-		return JavaScript
 	case "c#", "csharp":
 		return CSharp
+	case "js", "javascript":
+		return JavaScript
+	case "html":
+		return HTML
+	case "css":
+		return CSS
 	case "ruby", "rb":
 		return Ruby
-	case "perl", "pl":
-		return Perl
+	case "bash", "shell", "sh":
+		return Bash
+	case "dockerfile", "docker", "df":
+		return Dockerfile
+	case "yaml", "yml":
+		return YAML
 	}
 	return Unknown
+}
+
+var langTable = []*sitter.Language{
+	cpp.GetLanguage(),
+	rust.GetLanguage(),
+	golang.GetLanguage(),
+	python.GetLanguage(),
+	java.GetLanguage(),
+	csharp.GetLanguage(),
+	javascript.GetLanguage(),
+	html.GetLanguage(),
+	css.GetLanguage(),
+	ruby.GetLanguage(),
+	bash.GetLanguage(),
+	dockerfile.GetLanguage(),
+	yaml.GetLanguage(),
+}
+
+func (l Language) Lang() *sitter.Language {
+	if l >= maxLang || l <= Unknown {
+		return nil
+	}
+	return langTable[l]
 }

@@ -53,6 +53,7 @@ var lintCmd = &cobra.Command{
 		}
 		conf, err := getConfig(cmd.Flags())
 		errors.CheckErr(err)
+		log.Infof("successfully get config: %+v", conf)
 		err = glint.Lint(conf, project)
 		if err != nil {
 			log.Error(err)

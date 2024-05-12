@@ -2,10 +2,8 @@ package glint
 
 import (
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/stkali/glint/config"
 	"github.com/stkali/glint/models"
@@ -13,6 +11,7 @@ import (
 	_ "github.com/stkali/glint/models/golang"
 	_ "github.com/stkali/glint/models/python"
 	"github.com/stkali/glint/parser"
+	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/errors"
 	"github.com/stkali/utility/log"
 )
@@ -45,59 +44,92 @@ func setEnv(conf *config.Config) error {
 	return nil
 }
 
+/*
+	ext   -> 	parser
+				language
+
+*/
+
 // Lint ...
 func Lint(conf *config.Config, project string) error {
+
 	// init environment
 	if err := setEnv(conf); err != nil {
 		return err
 	}
+	log.Info("successfully set lint env")
+
 	// 清理 exclude 规则
 	cleanModels(conf)
-	// 生成规则集
-	manager, err := models.NewModelManager(conf.Languages)
-	if err != nil {
-		return errors.Newf("failed to create ModelManager, err: %s", err)
-	}
+	log.Info("successfully clean models")
 
-	linter, err := NewLinter(manager)
+	// 生成规则集
+	// manager, err := models.NewModelManager(conf.Languages)
+	// if err != nil {
+	// 	return errors.Newf("failed to create ModelManager, err: %s", err)
+	// }
+	log.Info("create models manager")
+
+	linter, err := NewLinter(conf)
 	if err != nil {
 		return err
 	}
+	log.Info("successfully create linter")
 	return linter.Lint(project)
 }
 
 // Linter ...
 type Linter struct {
-	models []*models.Model
-	parser parser.Parser
-	ctxCh chan parser.Context
+	conf   *config.Config
+	macher *modelsMatcher
 }
 
-// Lint 
-func (l *Linter) Lint(project string) error {
+func PreHandleProject(tree *parser.FileTree) {
 
-	// 解析文件
-	if err := l.parser.Parse(project, <-l.ctxCh); err != nil {
-		return errors.Newf("failed to parse project: %q, err: %s", project)
+}
+
+func VisitLint(tree *parser.FileTree) {
+	for _, child := range tree.RootNode().Children {
+		if child.Linter != nil && child.Linter.LintFunc != nil {
+			log.Info(child.File)
+			child.Linter.LintFunc(parser.NewContext(child.File))
+		}
 	}
+}
+
+// Lint
+func (l *Linter) Lint(project string) error {
+	log.Infof("start lint project: %q", project)
+	// 解析文件
+	tree := parser.NewFileTree(project)
+	err := tree.Parse(l.conf.ExcludeFiles, l.conf.ExcludeDirs, l.macher)
+	if err != nil {
+		return err
+	}
+	PreHandleProject(tree)
+	VisitLint(tree)
+
 	return nil
 }
 
-func skipPath(path string) bool {
-	return strings.HasPrefix(path, ".git")
+func (l *Linter) ApplyModels(tree *parser.FileNode) {
+
 }
 
-func NewLinter(manager *models.ModelManager) (*Linter, error) {
-	
-	linter := &Linter{
-		ctxCh: make(chan parser.Context, 1),
-		parser: &parser.LangParser{},
+func NewLinter(conf *config.Config) (*Linter, error) {
+	modelsMatcher, err := NewModelsMatcher(conf.Languages...)
+	if err != nil {
+		return nil, err
 	}
-	
-	return linter, nil
+	log.Infof("successfully created models matcher: %s", modelsMatcher)
+	linter := &Linter{
+		conf:   conf,
+		macher: modelsMatcher,
+	}
+	return linter, err
 }
 
-// cleanModels 清除那些无用的数据源
+// cleanModels 清除那些无用的规则
 func cleanModels(conf *config.Config) {
 
 	existTag := func(tags []string) bool {
@@ -108,7 +140,6 @@ func cleanModels(conf *config.Config) {
 		}
 		return false
 	}
-
 	for _, lang := range conf.Languages {
 		real := 0
 		for index := range lang.Models {
@@ -131,4 +162,53 @@ func exists(s []string, v string) bool {
 		}
 	}
 	return false
+}
+
+func makeLintModels(models ...*models.Model) parser.LintModels {
+	return func(ctx parser.Context) {
+		for index := range models {
+			model := models[index]
+			models[index].ModelFunc(model, ctx)
+		}
+	}
+}
+
+type modelsMatcher struct {
+	models map[string]*parser.Linter
+}
+
+func NewModelsMatcher(langs ...*config.Language) (*modelsMatcher, error) {
+
+	matcher := &modelsMatcher{
+		models: make(map[string]*parser.Linter, len(langs)),
+	}
+
+	for index := range langs {
+		lang := langs[index]
+		linter := &parser.Linter{
+			Lang: utils.ToLanguage(lang.Name),
+		}
+		modelList, err := models.LoadModels(lang)
+		if err != nil {
+			return nil, err
+		}
+		linter.LintFunc = makeLintModels(modelList...)
+		for i := range lang.Extends {
+			if _, ok := matcher.models[lang.Extends[i]]; ok {
+				return nil, errors.Newf("conflict extends: %q", lang.Extends[i])
+			} else {
+				matcher.models[lang.Extends[i]] = linter
+			}
+		}
+	}
+
+	return matcher, nil
+}
+
+func (m *modelsMatcher) Match(file string) *parser.Linter {
+	ext := filepath.Ext(file)
+	if lint, ok := m.models[ext]; ok {
+		return lint
+	}
+	return nil
 }

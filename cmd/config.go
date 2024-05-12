@@ -30,7 +30,6 @@ import (
 	"github.com/stkali/glint/models"
 	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/errors"
-	"github.com/stkali/utility/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -40,7 +39,6 @@ var configCmd = &cobra.Command{
 	Short: "A brief description of your command",
 	Run: func(cmd *cobra.Command, args []string) {
 		err := Configure(configFile)
-		log.Error(err)
 		errors.CheckErr(err)
 	},
 }
@@ -92,6 +90,8 @@ func generateDefaultConfig() (*config.Config, error) {
 		LogFile:        "",
 		WarningDisable: false,
 		ResultFormat:   "cmd",
+		ExcludeDirs:    []string{".*", "testdata"},
+		ExcludeFiles:   []string{".*"},
 	}
 	modelSet := models.ExportAllModels()
 	conf.Languages = make([]*config.Language, 0, len(modelSet))

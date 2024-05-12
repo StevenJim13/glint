@@ -1,8 +1,11 @@
 package glint
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func testArray(n int, b *testing.B) {
@@ -42,18 +45,25 @@ func testMap(n int, b *testing.B) {
 	}
 }
 
-func BenchmarkArray10(b *testing.B) {
+func BenchmarkArray6(b *testing.B) {
 	testArray(6, b)
 }
 
-func BenchmarkMap10(b *testing.B) {
+func BenchmarkMap6(b *testing.B) {
 	testMap(6, b)
 }
 
-func BenchmarkArray100(b *testing.B) {
-	testArray(100, b)
+func BenchmarkArray10(b *testing.B) {
+	testArray(10, b)
 }
 
-func BenchmarkMap100(b *testing.B) {
-	testMap(100, b)
+func BenchmarkMap10(b *testing.B) {
+	testMap(10, b)
+}
+
+func TestMakeExclude(t *testing.T) {
+	f, err := makeExcludeFunc(".*")
+	require.NoError(t, err)
+	fmt.Println(f("glint"))
+
 }

@@ -2,7 +2,7 @@ package basic
 
 import (
 	"fmt"
-	
+
 	"github.com/stkali/glint/models"
 	"github.com/stkali/glint/parser"
 )
@@ -36,7 +36,7 @@ var SensitiveApi = models.Model{
 
 		for _, call := range ctx.CallExpresses() {
 			if _, ok = sensHashTable[call.Function.Name]; ok {
-				ctx.AddDefect(fmt.Sprintf("sensitive api: %q", call.Function.Name))
+				ctx.AddDefect(models.NewDefect(fmt.Sprintf("sensitive api: %q", call.Function.Name)))
 			}
 		}
 	},

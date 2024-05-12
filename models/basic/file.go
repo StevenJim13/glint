@@ -2,9 +2,10 @@ package basic
 
 import (
 	"fmt"
+
 	"github.com/stkali/glint/models"
-	"github.com/stkali/glint/utils"
 	"github.com/stkali/glint/parser"
+	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/log"
 )
 
@@ -33,7 +34,7 @@ var FileBasic = models.Model{
 			charset := value.(string)
 			ctt = ctx.Content()
 			if err := verifyCharset(ctt, charset); err != nil {
-				ctx.AddDefect(fmt.Sprintf("the file charset expect %q", charset))
+				ctx.AddDefect(models.NewDefect(fmt.Sprintf("the file charset expect %q", charset)))
 			}
 		}
 
@@ -46,7 +47,9 @@ var FileBasic = models.Model{
 				info = ctx.LinesInfo()
 			}
 			if info.Lines() > lines {
-				ctx.AddDefect(fmt.Sprintf("the lines count should be <= %d, but %d", lines, info.Lines()))
+				ctx.AddDefect(
+					models.NewDefect(fmt.Sprintf("the lines count should be <= %d, but %d", lines, info.Lines())),
+				)
 			}
 		}
 
@@ -56,9 +59,9 @@ var FileBasic = models.Model{
 			if info == nil {
 				info = ctx.LinesInfo()
 			}
-			info.Range(func(line [2]uint) bool {
-				if line[0] > uint(length) {
-					ctx.AddDefect("")
+			info.Range(func(line [2]int) bool {
+				if line[0] > int(length) {
+					ctx.AddDefect(models.NewDefect(" too big"))
 				}
 				return true
 			})
@@ -70,9 +73,9 @@ var FileBasic = models.Model{
 			char := utils.MatchNewChar(newLineChar)
 			if info == nil {
 				info = ctx.LinesInfo()
-				info.Range(func(line [2]uint) bool {
+				info.Range(func(line [2]int) bool {
 					if line[1] != char {
-						ctx.AddDefect("")
+						ctx.AddDefect(models.NewDefect(""))
 					}
 					return true
 				})
