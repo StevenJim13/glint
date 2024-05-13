@@ -36,7 +36,7 @@ import (
 // configCmd represents the config command
 var configCmd = &cobra.Command{
 	Use:   "config",
-	Short: "A brief description of your command",
+	Short: "print default configuration file",
 	Run: func(cmd *cobra.Command, args []string) {
 		err := Configure(configFile)
 		errors.CheckErr(err)

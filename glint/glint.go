@@ -1,9 +1,11 @@
 package glint
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/stkali/glint/config"
 	"github.com/stkali/glint/models"
@@ -16,15 +18,17 @@ import (
 	"github.com/stkali/utility/log"
 )
 
-type Context interface {
-}
-
 // setEnv ...
 func setEnv(conf *config.Config) error {
 
 	// validte config
 	if err := config.Validate(conf); err != nil {
 		return err
+	}
+
+	// set warning
+	if conf.WarningDisable {
+		errors.DisableWarning()
 	}
 
 	// set log
@@ -62,19 +66,11 @@ func Lint(conf *config.Config, project string) error {
 	// 清理 exclude 规则
 	cleanModels(conf)
 	log.Info("successfully clean models")
-
-	// 生成规则集
-	// manager, err := models.NewModelManager(conf.Languages)
-	// if err != nil {
-	// 	return errors.Newf("failed to create ModelManager, err: %s", err)
-	// }
-	log.Info("create models manager")
-
 	linter, err := NewLinter(conf)
 	if err != nil {
 		return err
 	}
-	log.Info("successfully create linter")
+	log.Infof("successfully create linter: %s", linter)
 	return linter.Lint(project)
 }
 
@@ -82,38 +78,6 @@ func Lint(conf *config.Config, project string) error {
 type Linter struct {
 	conf   *config.Config
 	macher *modelsMatcher
-}
-
-func PreHandleProject(tree *parser.FileTree) {
-
-}
-
-func VisitLint(tree *parser.FileTree) {
-	for _, child := range tree.RootNode().Children {
-		if child.Linter != nil && child.Linter.LintFunc != nil {
-			log.Info(child.File)
-			child.Linter.LintFunc(parser.NewContext(child.File))
-		}
-	}
-}
-
-// Lint
-func (l *Linter) Lint(project string) error {
-	log.Infof("start lint project: %q", project)
-	// 解析文件
-	tree := parser.NewFileTree(project)
-	err := tree.Parse(l.conf.ExcludeFiles, l.conf.ExcludeDirs, l.macher)
-	if err != nil {
-		return err
-	}
-	PreHandleProject(tree)
-	VisitLint(tree)
-
-	return nil
-}
-
-func (l *Linter) ApplyModels(tree *parser.FileNode) {
-
 }
 
 func NewLinter(conf *config.Config) (*Linter, error) {
@@ -127,6 +91,59 @@ func NewLinter(conf *config.Config) (*Linter, error) {
 		macher: modelsMatcher,
 	}
 	return linter, err
+}
+
+// Lint
+func (l *Linter) Lint(project string) error {
+
+	log.Infof("start lint project: %q", project)
+	tree := parser.NewFileTree(project)
+	err := tree.Parse(l.conf.ExcludeFiles, l.conf.ExcludeDirs, l.macher)
+	if err != nil {
+		return err
+	}
+	log.Infof("successfully parsed filetree: %s", tree)
+	PreHandleProject(tree)
+	log.Infof("successfully pre handle file tree")
+	VisitLint(tree, l.conf.Concurrecy)
+	log.Infof("visit file tree")
+	return nil
+}
+
+func (l *Linter) String() string {
+	return "<Linter>"
+}
+
+func PreHandleProject(tree *parser.FileTree) {
+
+}
+
+// VisitLint ...
+func VisitLint(tree *parser.FileTree, concurrecy int) {
+
+	ctxCh := make(chan parser.Context, 1)
+	// 遍历文件树
+	go func() {
+		tree.Walk(func(node *parser.FileNode) error {
+			if node.Linter != nil {
+				ctxCh <- node
+			}
+			return nil
+		})
+		defer close(ctxCh)
+	}()
+	var wg sync.WaitGroup
+	for i := 0; i < concurrecy; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for ctx := range ctxCh {
+				ctx.Lint(ctx)
+			}
+		}()
+	}
+	wg.Wait()
+
 }
 
 // cleanModels 清除那些无用的规则
@@ -211,4 +228,8 @@ func (m *modelsMatcher) Match(file string) *parser.Linter {
 		return lint
 	}
 	return nil
+}
+
+func (m *modelsMatcher) String() string {
+	return fmt.Sprintf("<modelsMatch: %d>", len(m.models))
 }

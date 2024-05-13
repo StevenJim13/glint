@@ -16,7 +16,7 @@ var (
 	newLineKey       = "newLine"
 )
 
-// FileBasic ...
+// FileBasic 与语言无关的规则
 var FileBasic = models.Model{
 	Name: "FileBasic",
 	Tags: []string{"basic"},
@@ -27,7 +27,7 @@ var FileBasic = models.Model{
 		newLineKey:       "\\n",
 	},
 	ModelFunc: func(model *models.Model, ctx parser.Context) {
-
+		log.Infof("apply model: %s to: %s", model.Name, ctx.File())
 		var ctt []byte
 		// verify charset
 		if value, ok := model.Options[charSetKey]; ok {

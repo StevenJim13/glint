@@ -25,6 +25,7 @@ type Language int
 
 const (
 	Unknown Language = iota
+	Any
 	CCpp
 	Rust
 	GoLang
@@ -42,6 +43,8 @@ const (
 )
 
 var labelTable = []string{
+	"Unknown",
+	"Any",
 	"C/C++",
 	"Rust",
 	"Golang",
@@ -65,6 +68,8 @@ func (l Language) String() string {
 }
 
 var extendsTable = [][]string{
+	{""},
+	{""},
 	{".c", ".h", ".cpp", ".hpp", ".cxx"},
 	{".rs"},
 	{".go"},
@@ -90,6 +95,8 @@ func Extends(lang Language) ([]string, error) {
 func ToLanguage(name string) Language {
 
 	switch strings.ToLower(name) {
+	case "*":
+		return Any
 	case "c", "c++", "c/c++", "cpp":
 		return CCpp
 	case "rust", "rt":
@@ -121,6 +128,8 @@ func ToLanguage(name string) Language {
 }
 
 var langTable = []*sitter.Language{
+	nil,
+	nil,
 	cpp.GetLanguage(),
 	rust.GetLanguage(),
 	golang.GetLanguage(),

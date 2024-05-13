@@ -1,6 +1,7 @@
 package python
 
 import (
+	"github.com/stkali/utility/errors"
 	"github.com/stkali/utility/log"
 
 	"github.com/stkali/glint/models"
@@ -9,11 +10,10 @@ import (
 )
 
 func init() {
-	if err := models.InjectModels(utils.Python,
+	err := models.InjectModels(utils.Python,
 		&basic.SensitiveApi,
 		&basic.FileBasic,
-	); err != nil {
-		panic(err)
-	}
-	log.Debugf("successfully injected %s models", utils.Python)
+	)
+	errors.CheckErr(err)
+	log.Infof("successfully injected %s models", utils.Python)
 }

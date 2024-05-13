@@ -7,8 +7,6 @@ import (
 	"github.com/stkali/glint/parser"
 	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/errors"
-	"github.com/stkali/utility/log"
-	// "github.com/stkali/utility/log"
 )
 
 var manager = sync.Map{}
@@ -24,7 +22,16 @@ func InjectModels(lang utils.Language, models ...*Model) error {
 	} else {
 		lm = v.(*langManager)
 	}
+	copy(models)
 	return lm.adds(models...)
+}
+
+// copy 创建
+func copy(ms []*Model) {
+	for index := range ms {
+		model := *ms[index]
+		ms[index] = &model
+	}
 }
 
 // ExportAllModels ...
@@ -69,7 +76,7 @@ func (l *langManager) adds(models ...*Model) error {
 	return nil
 }
 
-// add
+// add no lock
 func (l *langManager) add(model *Model) error {
 	if _, ok := l.ms[model.Name]; ok {
 		return errors.Newf("conflict model: %q", model.Name)
@@ -93,16 +100,12 @@ func LoadModels(lang *config.Language) ([]*Model, error) {
 	modelList := make([]*Model, 0, len(lang.Models))
 	for _, modelConf := range lang.Models {
 		model, ok := langManager.ms[modelConf.Name]
-
 		if !ok {
 			return nil, errors.Newf("invalid %q language model: %q", language, modelConf.Name)
 		} else {
-			log.Infof("model: %s", model)
-			log.Infof("modelConf: %s", modelConf.Options)
 			model.Tags = modelConf.Tags
 			model.Options = modelConf.Options
 			modelList = append(modelList, model)
-			log.Infof("model: %s", model)
 		}
 	}
 	return modelList, nil

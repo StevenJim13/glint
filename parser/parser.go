@@ -13,6 +13,7 @@ import (
 	"github.com/smacker/go-tree-sitter/python"
 	"github.com/smacker/go-tree-sitter/rust"
 	"github.com/stkali/glint/utils"
+	"github.com/stkali/utility/errors"
 	"github.com/stkali/utility/log"
 	"github.com/stkali/utility/tool"
 )
@@ -30,8 +31,11 @@ type Context interface {
 	// CallExpresses returns all callexpression node(s) of file
 	CallExpresses() []*CallExpress
 	//
-	Name() string
+	File() string
+	// Lint()
+	Lint(ctx Context)
 }
+
 type Defect interface {
 	String() string
 }
@@ -72,21 +76,104 @@ var langauges = map[utils.Language]*sitter.Language{
 	utils.JavaScript: javascript.GetLanguage(),
 }
 
-func NewContext(path string) Context {
-	return &ASTContext{
-		file: path,
-	}
+type Linter struct {
+	Lang     utils.Language
+	LintFunc LintModels
 }
 
 type FileNode struct {
 	// 所属语言
 	Language utils.Language
 	// 文件路径
-	File string
+	file string
 	// 子节点
 	Children []*FileNode
-	// LintFunc
-	Linter *Linter
+	content  []byte
+	info     [][2]int
+	*Linter
+}
+
+// Lint implements Context.
+func (n *FileNode) Lint(ctx Context) {
+	if n.LintFunc != nil {
+		n.LintFunc(ctx)
+	}
+}
+
+// AddDefect implements Context.
+func (n *FileNode) AddDefect(defect Defect) {
+	return
+}
+
+// CallExpresses implements Context.
+func (n *FileNode) CallExpresses() []*CallExpress {
+	return nil
+}
+
+// Content implements Context.
+func (n *FileNode) Content() []byte {
+	if n.content == nil {
+		if err := n.loadContent(); err != nil {
+			errors.Warningf("failed to get file: %q content, err: %s", n.file, err)
+		}
+	}
+	return n.content
+}
+
+// loadContent TODO
+func (n *FileNode) loadContent() (err error) {
+	n.content, err = os.ReadFile(n.file)
+	return
+}
+
+// Functions implements Context.
+func (n *FileNode) Functions() []*Function {
+	return nil
+}
+
+// LinesInfo implements Context.
+func (n *FileNode) LinesInfo() LinesInfo {
+	if n.info == nil {
+		ctt := n.Content()
+		gap := 0
+		index, length := 0, len(ctt)
+		for index < length {
+			switch ctt[index] {
+			case '\r':
+				lineLength := len(tool.ToString(ctt[gap:index]))
+				if index+1 < length {
+					if ctt[index+1] == '\n' {
+						// \r\n
+						n.info = append(n.info, [2]int{lineLength, 3})
+						index += 1
+						gap = index + 1
+					} else {
+						// \r
+						n.info = append(n.info, [2]int{lineLength, 1})
+						gap = index + 1
+					}
+				} else {
+					// EOF
+					n.info = append(n.info, [2]int{lineLength, 1})
+				}
+			case '\n':
+				lineLength := len(tool.ToString(ctt[gap:index]))
+				n.info = append(n.info, [2]int{lineLength, 2})
+				gap = index + 1
+			}
+			index += 1
+		}
+		if index > gap {
+			lineLength := len(tool.ToString(ctt[gap:index]))
+			n.info = append(n.info, [2]int{lineLength, 2})
+		}
+	}
+	return n.info
+}
+
+// Name implements Context.
+func (n *FileNode) File() string {
+	return n.file
 }
 
 func (n *FileNode) AddChild(node *FileNode) {
@@ -96,6 +183,8 @@ func (n *FileNode) AddChild(node *FileNode) {
 func (n *FileNode) String() string {
 	return fmt.Sprintf("<Node: %s>", n.File)
 }
+
+var _ Context = (*FileNode)(nil)
 
 type FileTree struct {
 	Root     string
@@ -133,6 +222,20 @@ func (f *FileTree) Parse(excFiles, excDirs []string, matcher Matcher) error {
 	log.Infof("successfully to build file tree: %s", f)
 	return nil
 }
+
+func (f *FileTree) Walk(fn func(node *FileNode) error) {
+	walk(f.rootNode, fn)
+}
+
+func walk(node *FileNode, fn func(node *FileNode) error) {
+	fn(node)
+	if len(node.Children) != 0 {
+		for index := range node.Children {
+			walk(node.Children[index], fn)
+		}
+	}
+}
+
 func (f *FileTree) String() string {
 	return fmt.Sprintf("<FileTree: %s>", f.Root)
 }
@@ -155,7 +258,7 @@ func buildFileTree(
 			return nil
 		} else {
 			node := &FileNode{
-				File: path,
+				file: path,
 			}
 			root.AddChild(node)
 			dirs, err := os.ReadDir(path)
@@ -180,7 +283,7 @@ func buildFileTree(
 				return nil
 			}
 			node := &FileNode{
-				File:   path,
+				file:   path,
 				Linter: linter,
 			}
 			root.AddChild(node)
@@ -245,13 +348,4 @@ type LintModels func(ctx Context)
 
 type Matcher interface {
 	Match(file string) *Linter
-}
-
-type Linter struct {
-	Lang     utils.Language
-	LintFunc LintModels
-}
-
-func (l *Linter) String() string {
-	return fmt.Sprintf("<Linter: %s>", l.Lang)
 }

@@ -1,6 +1,7 @@
 package golang
 
 import (
+	"github.com/stkali/utility/errors"
 	"github.com/stkali/utility/log"
 
 	"github.com/stkali/glint/models"
@@ -9,11 +10,10 @@ import (
 )
 
 func init() {
-	if err := models.InjectModels(utils.GoLang,
+	err := models.InjectModels(utils.GoLang,
 		&basic.SensitiveApi,
 		&basic.FileBasic,
-	); err != nil {
-		panic(err)
-	}
-	log.Debugf("successfully injected %s models", utils.GoLang)
+	)
+	errors.CheckErr(err)
+	log.Infof("successfully injected %s models", utils.GoLang)
 }

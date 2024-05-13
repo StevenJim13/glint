@@ -10,6 +10,7 @@ import (
 var (
 	sensitiveKey = "sensitives"
 )
+
 var SensitiveApi = models.Model{
 	Name: "SensitiveApi",
 	Tags: []string{"basic"},
