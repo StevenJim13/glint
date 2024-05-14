@@ -34,12 +34,12 @@ type Context interface {
 	// CallExpress
 	CallExpresses() []CallExpress
 	// AddDefect
-	Defect(modelName *string, row, col int, s string, args ...any)
+	Defect(model *Model, row, col int, s string, args ...any)
 	DefectSet() []*Defect
 }
 
 type Defect struct {
-	Model *string
+	Model *Model
 	Desc  string
 	Row   int
 	Col   int
@@ -81,9 +81,9 @@ func (f *FileNode) DefectSet() []*Defect {
 }
 
 // Defect implements Context.
-func (f *FileNode) Defect(modelName *string, row int, col int, s string, args ...any) {
+func (f *FileNode) Defect(model *Model, row int, col int, s string, args ...any) {
 	def := &Defect{
-		Model: modelName,
+		Model: model,
 		Desc:  fmt.Sprintf(s, args...),
 		Row:   row,
 		Col:   col,
@@ -277,9 +277,7 @@ func buildFileTree(
 		return err
 	}
 	if info.IsDir() {
-		//
 		if exclude(info.Name(), false) {
-			log.Infof("exclude: %s", info.Name())
 			return nil
 		} else {
 			node := &FileNode{
@@ -305,6 +303,7 @@ func buildFileTree(
 		} else {
 			linter := dispatch(info.Name())
 			if linter == nil {
+				log.Errorf("exclude: %s", info.Name())
 				return nil
 			}
 			node := &FileNode{

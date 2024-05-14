@@ -34,10 +34,8 @@ var SensitiveApi = glint.Model{
 
 		for _, call := range ctx.CallExpresses() {
 			if _, ok = sensHashTable[call.Function.Name]; ok {
-				ctx.Defect(
-					&model.Name,
-					call.Function.Position[0],
-					call.Function.Position[1],
+				p := call.Function.Position
+				ctx.Defect(model, p[0], p[1],
 					"sensitive api: %q", call.Function.Name,
 				)
 			}

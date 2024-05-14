@@ -13,30 +13,6 @@ excludeDirs:
 excludeFiles:
   - .*
 languages:
-  - name: C/C++
-    options: {}
-    extends:
-      - .c
-      - .h
-      - .cpp
-      - .hpp
-      - .cxx
-    models:
-      - name: SensitiveApi
-        tags:
-          - basic
-        options:
-          sensitives:
-            - foo
-            - bar
-      - name: FileBasic
-        tags:
-          - basic
-        options:
-          charset: utf-8
-          maxLineLength: 120
-          maxLines: 1200
-          newLine: \n
   - name: Golang
     options: {}
     extends:
@@ -53,14 +29,12 @@ languages:
         tags:
           - basic
         options:
-          charset: utf-8
-          maxLineLength: 120
-          maxLines: 1200
-          newLine: \n
+          charset: utf8
+          maxLineLength: 100
+          maxLines: 100
+#          newLine: \n
   - name: "*"
     options: {}
-    extends:
-      - .py
     models:
       - name: FileBasic
         tags:
@@ -68,6 +42,6 @@ languages:
         options:
           charset: utf-8
           maxLineLength: 120
-          maxLines: 1200
+          maxLines: 10
           newLine: \n
 

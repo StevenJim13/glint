@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/stkali/utility/errors"
 )
@@ -56,6 +57,7 @@ func (j *JsonOutput) Write(ctx Context) {
 
 type TextOutput struct {
 	output io.Writer
+	sync.Mutex
 }
 
 // Flush implements Outputer.
@@ -71,8 +73,11 @@ func (c *TextOutput) Write(ctx Context) {
 	if len(ctx.DefectSet()) == 0 {
 		return
 	}
+	c.Lock()
+	defer c.Unlock()
 	fmt.Println(ctx.File())
 	for id, d := range ctx.DefectSet() {
-		fmt.Printf("  %d. model:%s position:(%d,%d) desc:%s\n", id, d.Row, d.Col, *d.Model, d.Desc)
+		fmt.Printf("%6d|(%4d,%4d) model:%s desc:%s\n", id, d.Row, d.Col, d.Model.Name, d.Desc)
+		fmt.Printf("")
 	}
 }
