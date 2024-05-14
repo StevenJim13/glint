@@ -1,18 +1,12 @@
 package glint
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sync"
 
 	"github.com/stkali/glint/config"
-	"github.com/stkali/glint/models"
-	_ "github.com/stkali/glint/models/c"
-	_ "github.com/stkali/glint/models/golang"
-	_ "github.com/stkali/glint/models/python"
-	"github.com/stkali/glint/parser"
 	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/errors"
 	"github.com/stkali/utility/log"
@@ -66,7 +60,7 @@ func Lint(conf *config.Config, project string) error {
 	// 清理 exclude 规则
 	cleanModels(conf)
 	log.Info("successfully clean models")
-	linter, err := NewLinter(conf)
+	linter, err := NewGLinter(conf)
 	if err != nil {
 		return err
 	}
@@ -75,30 +69,54 @@ func Lint(conf *config.Config, project string) error {
 }
 
 // Linter ...
-type Linter struct {
+type GLinter struct {
 	conf   *config.Config
-	macher *modelsMatcher
+	models map[string]*Linter
+	output Outputer
 }
 
-func NewLinter(conf *config.Config) (*Linter, error) {
-	modelsMatcher, err := NewModelsMatcher(conf.Languages...)
+func NewGLinter(conf *config.Config) (*GLinter, error) {
+
+	// create outputer
+	outpuer, err := CreateOutput(conf.ResultFile, conf.ResultFormat)
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("successfully created models matcher: %s", modelsMatcher)
-	linter := &Linter{
+
+	// create glinter
+	glinter := &GLinter{
 		conf:   conf,
-		macher: modelsMatcher,
+		output: outpuer,
+		models: make(map[string]*Linter, len(conf.Languages)),
 	}
-	return linter, err
+
+	// build linter(s) mapping
+	for _, lang := range conf.Languages {
+		linter := &Linter{
+			Lang: utils.ToLanguage(lang.Name),
+		}
+		modelList, err := LoadModels(lang)
+		if err != nil {
+			return nil, err
+		}
+		linter.LintFunc = makeLintModels(outpuer, modelList...)
+		for i := range lang.Extends {
+			if _, ok := glinter.models[lang.Extends[i]]; ok {
+				return nil, errors.Newf("conflict extends: %q", lang.Extends[i])
+			} else {
+				glinter.models[lang.Extends[i]] = linter
+			}
+		}
+	}
+	return glinter, err
 }
 
 // Lint
-func (l *Linter) Lint(project string) error {
+func (l *GLinter) Lint(project string) error {
 
 	log.Infof("start lint project: %q", project)
-	tree := parser.NewFileTree(project)
-	err := tree.Parse(l.conf.ExcludeFiles, l.conf.ExcludeDirs, l.macher)
+	tree := NewFileTree(project)
+	err := tree.Parse(l.conf.ExcludeFiles, l.conf.ExcludeDirs, l.DispatchLinter)
 	if err != nil {
 		return err
 	}
@@ -110,21 +128,29 @@ func (l *Linter) Lint(project string) error {
 	return nil
 }
 
-func (l *Linter) String() string {
+func (l *GLinter) String() string {
 	return "<Linter>"
 }
 
-func PreHandleProject(tree *parser.FileTree) {
+func (l *GLinter) DispatchLinter(file string) *Linter {
+	ext := filepath.Ext(file)
+	if lint, ok := l.models[ext]; ok {
+		return lint
+	}
+	return nil
+}
+
+func PreHandleProject(tree *FileTree) {
 
 }
 
 // VisitLint ...
-func VisitLint(tree *parser.FileTree, concurrecy int) {
+func VisitLint(tree *FileTree, concurrecy int) {
 
-	ctxCh := make(chan parser.Context, 1)
+	ctxCh := make(chan Context, 1)
 	// 遍历文件树
 	go func() {
-		tree.Walk(func(node *parser.FileNode) error {
+		tree.Walk(func(node *FileNode) error {
 			if node.Linter != nil {
 				ctxCh <- node
 			}
@@ -138,6 +164,7 @@ func VisitLint(tree *parser.FileTree, concurrecy int) {
 		go func() {
 			defer wg.Done()
 			for ctx := range ctxCh {
+				// 检查
 				ctx.Lint(ctx)
 			}
 		}()
@@ -181,55 +208,19 @@ func exists(s []string, v string) bool {
 	return false
 }
 
-func makeLintModels(models ...*models.Model) parser.LintModels {
-	return func(ctx parser.Context) {
+func makeLintModels(output Outputer, models ...*Model) LintModels {
+
+	//
+
+	return func(ctx Context) {
+		file := ctx.File()
+		log.Debugf("handle file: %q", file)
+		defer func() {
+			output.Write(ctx)
+		}()
 		for index := range models {
 			model := models[index]
 			models[index].ModelFunc(model, ctx)
 		}
 	}
-}
-
-type modelsMatcher struct {
-	models map[string]*parser.Linter
-}
-
-func NewModelsMatcher(langs ...*config.Language) (*modelsMatcher, error) {
-
-	matcher := &modelsMatcher{
-		models: make(map[string]*parser.Linter, len(langs)),
-	}
-
-	for index := range langs {
-		lang := langs[index]
-		linter := &parser.Linter{
-			Lang: utils.ToLanguage(lang.Name),
-		}
-		modelList, err := models.LoadModels(lang)
-		if err != nil {
-			return nil, err
-		}
-		linter.LintFunc = makeLintModels(modelList...)
-		for i := range lang.Extends {
-			if _, ok := matcher.models[lang.Extends[i]]; ok {
-				return nil, errors.Newf("conflict extends: %q", lang.Extends[i])
-			} else {
-				matcher.models[lang.Extends[i]] = linter
-			}
-		}
-	}
-
-	return matcher, nil
-}
-
-func (m *modelsMatcher) Match(file string) *parser.Linter {
-	ext := filepath.Ext(file)
-	if lint, ok := m.models[ext]; ok {
-		return lint
-	}
-	return nil
-}
-
-func (m *modelsMatcher) String() string {
-	return fmt.Sprintf("<modelsMatch: %d>", len(m.models))
 }

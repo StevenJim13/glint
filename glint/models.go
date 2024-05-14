@@ -1,10 +1,9 @@
-package models
+package glint
 
 import (
 	"sync"
 
 	"github.com/stkali/glint/config"
-	"github.com/stkali/glint/parser"
 	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/errors"
 )
@@ -56,7 +55,7 @@ type Model struct {
 	ModelFunc ModelFuncType
 }
 
-type ModelFuncType func(model *Model, ctx parser.Context)
+type ModelFuncType func(model *Model, ctx Context)
 
 type langManager struct {
 	sync.Mutex

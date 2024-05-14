@@ -1,4 +1,5 @@
-package parser
+// ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+package glint
 
 import (
 	"fmt"
@@ -22,32 +23,161 @@ import (
 type Context interface {
 	// Content returns file content
 	Content() []byte
-	// AddDefect adds a defect to
-	AddDefect(defect Defect)
 	// LinesInfo returns line information of file
 	LinesInfo() LinesInfo
 	// Functions returns all function define AST node(s) of file
-	Functions() []*Function
-	// CallExpresses returns all callexpression node(s) of file
-	CallExpresses() []*CallExpress
-	//
 	File() string
 	// Lint()
 	Lint(ctx Context)
+	// Functions
+	Functions() []Function
+	// CallExpress
+	CallExpresses() []CallExpress
+	// AddDefect
+	Defect(modelName *string, row, col int, s string, args ...any)
+	DefectSet() []*Defect
 }
 
-type Defect interface {
-	String() string
+type Defect struct {
+	Model *string
+	Desc  string
+	Row   int
+	Col   int
+}
+
+func (d *Defect) String() string {
+	return fmt.Sprintf("model: %q, desc: %s, position:(%d,%d)", *d.Model, d.Desc, d.Row, d.Col)
 }
 
 type Function struct {
-	Name   string
-	Return string
+	Name     string
+	Return   string
+	Position [2]int
 }
 
 type CallExpress struct {
 	Function *Function
 }
+
+// FileNode
+type FileNode struct {
+	// 文件的语言和检查规则
+	*Linter
+	// 文件路径
+	file string
+	// 子节点
+	Children []*FileNode
+	// 文件的内容
+	content []byte
+	// 文件的行信息
+	info [][2]int
+	// defects
+	defects []*Defect
+}
+
+// DefectSet implements Context.
+func (f *FileNode) DefectSet() []*Defect {
+	return f.defects
+}
+
+// Defect implements Context.
+func (f *FileNode) Defect(modelName *string, row int, col int, s string, args ...any) {
+	def := &Defect{
+		Model: modelName,
+		Desc:  fmt.Sprintf(s, args...),
+		Row:   row,
+		Col:   col,
+	}
+	f.defects = append(f.defects, def)
+}
+
+// CallExpresses implements Context.
+func (f *FileNode) CallExpresses() []CallExpress {
+	return nil
+}
+
+// Functions implements Context.
+func (f *FileNode) Functions() []Function {
+	return nil
+}
+
+// Lint implements Context.
+func (f *FileNode) Lint(ctx Context) {
+	if f.LintFunc != nil {
+		f.LintFunc(ctx)
+	}
+}
+
+// Content implements Context.
+func (f *FileNode) Content() []byte {
+	if f.content == nil {
+		if err := f.loadContent(); err != nil {
+			errors.Warningf("failed to get file: %q content, err: %s", f.file, err)
+		}
+	}
+	return f.content
+}
+
+// loadContent TODO
+func (f *FileNode) loadContent() (err error) {
+	f.content, err = os.ReadFile(f.file)
+	return
+}
+
+// LinesInfo implements Context.
+func (f *FileNode) LinesInfo() LinesInfo {
+	if f.info == nil {
+		ctt := f.Content()
+		gap := 0
+		index, length := 0, len(ctt)
+		for index < length {
+			switch ctt[index] {
+			case '\r':
+				lineLength := len(tool.ToString(ctt[gap:index]))
+				if index+1 < length {
+					if ctt[index+1] == '\n' {
+						// \r\n
+						f.info = append(f.info, [2]int{lineLength, 3})
+						index += 1
+						gap = index + 1
+					} else {
+						// \r
+						f.info = append(f.info, [2]int{lineLength, 1})
+						gap = index + 1
+					}
+				} else {
+					// EOF
+					f.info = append(f.info, [2]int{lineLength, 1})
+				}
+			case '\n':
+				lineLength := len(tool.ToString(ctt[gap:index]))
+				f.info = append(f.info, [2]int{lineLength, 2})
+				gap = index + 1
+			}
+			index += 1
+		}
+		if index > gap {
+			lineLength := len(tool.ToString(ctt[gap:index]))
+			f.info = append(f.info, [2]int{lineLength, 2})
+		}
+	}
+	return f.info
+}
+
+// Name implements Context.
+func (f *FileNode) File() string {
+	return f.file
+}
+
+func (f *FileNode) AddChild(node *FileNode) {
+	f.Children = append(f.Children, node)
+}
+
+func (f *FileNode) String() string {
+	return fmt.Sprintf("<Node: %s>", f.File)
+}
+
+var _ Context = (*FileNode)(nil)
 
 type LinesInfo [][2]int
 
@@ -59,9 +189,9 @@ func (l LinesInfo) Lines() int {
 	return len(l)
 }
 
-func (l LinesInfo) Range(f func(line [2]int) bool) {
+func (l LinesInfo) Range(f func(index int, line [2]int) bool) {
 	for index := range l {
-		if !f(l[index]) {
+		if !f(index, l[index]) {
 			return
 		}
 	}
@@ -80,111 +210,6 @@ type Linter struct {
 	Lang     utils.Language
 	LintFunc LintModels
 }
-
-type FileNode struct {
-	// 所属语言
-	Language utils.Language
-	// 文件路径
-	file string
-	// 子节点
-	Children []*FileNode
-	content  []byte
-	info     [][2]int
-	*Linter
-}
-
-// Lint implements Context.
-func (n *FileNode) Lint(ctx Context) {
-	if n.LintFunc != nil {
-		n.LintFunc(ctx)
-	}
-}
-
-// AddDefect implements Context.
-func (n *FileNode) AddDefect(defect Defect) {
-	return
-}
-
-// CallExpresses implements Context.
-func (n *FileNode) CallExpresses() []*CallExpress {
-	return nil
-}
-
-// Content implements Context.
-func (n *FileNode) Content() []byte {
-	if n.content == nil {
-		if err := n.loadContent(); err != nil {
-			errors.Warningf("failed to get file: %q content, err: %s", n.file, err)
-		}
-	}
-	return n.content
-}
-
-// loadContent TODO
-func (n *FileNode) loadContent() (err error) {
-	n.content, err = os.ReadFile(n.file)
-	return
-}
-
-// Functions implements Context.
-func (n *FileNode) Functions() []*Function {
-	return nil
-}
-
-// LinesInfo implements Context.
-func (n *FileNode) LinesInfo() LinesInfo {
-	if n.info == nil {
-		ctt := n.Content()
-		gap := 0
-		index, length := 0, len(ctt)
-		for index < length {
-			switch ctt[index] {
-			case '\r':
-				lineLength := len(tool.ToString(ctt[gap:index]))
-				if index+1 < length {
-					if ctt[index+1] == '\n' {
-						// \r\n
-						n.info = append(n.info, [2]int{lineLength, 3})
-						index += 1
-						gap = index + 1
-					} else {
-						// \r
-						n.info = append(n.info, [2]int{lineLength, 1})
-						gap = index + 1
-					}
-				} else {
-					// EOF
-					n.info = append(n.info, [2]int{lineLength, 1})
-				}
-			case '\n':
-				lineLength := len(tool.ToString(ctt[gap:index]))
-				n.info = append(n.info, [2]int{lineLength, 2})
-				gap = index + 1
-			}
-			index += 1
-		}
-		if index > gap {
-			lineLength := len(tool.ToString(ctt[gap:index]))
-			n.info = append(n.info, [2]int{lineLength, 2})
-		}
-	}
-	return n.info
-}
-
-// Name implements Context.
-func (n *FileNode) File() string {
-	return n.file
-}
-
-func (n *FileNode) AddChild(node *FileNode) {
-	n.Children = append(n.Children, node)
-}
-
-func (n *FileNode) String() string {
-	return fmt.Sprintf("<Node: %s>", n.File)
-}
-
-var _ Context = (*FileNode)(nil)
 
 type FileTree struct {
 	Root     string
@@ -210,12 +235,12 @@ func (f *FileTree) AddChild(node *FileNode) {
 	panic("Tree head node has been set")
 }
 
-func (f *FileTree) Parse(excFiles, excDirs []string, matcher Matcher) error {
+func (f *FileTree) Parse(excFiles, excDirs []string, dispatch func(string) *Linter) error {
 	exclude, err := getExclude(excFiles, excDirs)
 	if err != nil {
 		return err
 	}
-	err = buildFileTree(f.Root, f, exclude, matcher)
+	err = buildFileTree(f.Root, f, exclude, dispatch)
 	if err != nil {
 		return err
 	}
@@ -243,8 +268,8 @@ func (f *FileTree) String() string {
 func buildFileTree(
 	path string,
 	root interface{ AddChild(*FileNode) },
-	exclude func(path string, file bool) bool,
-	matcher Matcher,
+	exclude func(string, bool) bool,
+	dispatch func(string) *Linter,
 ) error {
 
 	info, err := os.Lstat(path)
@@ -267,7 +292,7 @@ func buildFileTree(
 			}
 			for index := range dirs {
 				subPath := filepath.Join(path, dirs[index].Name())
-				if err := buildFileTree(subPath, node, exclude, matcher); err != nil {
+				if err := buildFileTree(subPath, node, exclude, dispatch); err != nil {
 					return err
 				}
 			}
@@ -278,7 +303,7 @@ func buildFileTree(
 		if exclude(info.Name(), true) {
 			return nil
 		} else {
-			linter := matcher.Match(info.Name())
+			linter := dispatch(info.Name())
 			if linter == nil {
 				return nil
 			}

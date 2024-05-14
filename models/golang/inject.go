@@ -4,13 +4,13 @@ import (
 	"github.com/stkali/utility/errors"
 	"github.com/stkali/utility/log"
 
-	"github.com/stkali/glint/models"
+	"github.com/stkali/glint/glint"
 	"github.com/stkali/glint/models/basic"
 	"github.com/stkali/glint/utils"
 )
 
 func init() {
-	err := models.InjectModels(utils.GoLang,
+	err := glint.InjectModels(utils.GoLang,
 		&basic.SensitiveApi,
 		&basic.FileBasic,
 	)

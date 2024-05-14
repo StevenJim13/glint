@@ -1,6 +1,6 @@
 version: 0.1.0
 concurrecy: 1024
-logLevel: info
+logLevel: error
 logFile: ""
 warningDisable: false
 resultFile: ""

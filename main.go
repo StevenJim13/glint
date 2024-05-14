@@ -30,6 +30,9 @@ package main
 
 import (
 	"github.com/stkali/glint/cmd"
+	_ "github.com/stkali/glint/models/c"
+	_ "github.com/stkali/glint/models/golang"
+	_ "github.com/stkali/glint/models/python"
 )
 
 func main() {

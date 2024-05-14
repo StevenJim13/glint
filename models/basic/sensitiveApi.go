@@ -1,17 +1,14 @@
 package basic
 
 import (
-	"fmt"
-
-	"github.com/stkali/glint/models"
-	"github.com/stkali/glint/parser"
+	"github.com/stkali/glint/glint"
 )
 
 var (
 	sensitiveKey = "sensitives"
 )
 
-var SensitiveApi = models.Model{
+var SensitiveApi = glint.Model{
 	Name: "SensitiveApi",
 	Tags: []string{"basic"},
 	Options: map[string]any{
@@ -19,7 +16,7 @@ var SensitiveApi = models.Model{
 			"foo", "bar",
 		},
 	},
-	ModelFunc: func(model *models.Model, ctx parser.Context) {
+	ModelFunc: func(model *glint.Model, ctx glint.Context) {
 
 		sensitiveFuncs, ok := model.Options[sensitiveKey]
 		if !ok {
@@ -37,7 +34,12 @@ var SensitiveApi = models.Model{
 
 		for _, call := range ctx.CallExpresses() {
 			if _, ok = sensHashTable[call.Function.Name]; ok {
-				ctx.AddDefect(models.NewDefect(fmt.Sprintf("sensitive api: %q", call.Function.Name)))
+				ctx.Defect(
+					&model.Name,
+					call.Function.Position[0],
+					call.Function.Position[1],
+					"sensitive api: %q", call.Function.Name,
+				)
 			}
 		}
 	},

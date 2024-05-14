@@ -27,7 +27,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stkali/glint/config"
-	"github.com/stkali/glint/models"
+	"github.com/stkali/glint/glint"
 	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/errors"
 	"gopkg.in/yaml.v3"
@@ -93,7 +93,7 @@ func generateDefaultConfig() (*config.Config, error) {
 		ExcludeDirs:    []string{".*", "testdata"},
 		ExcludeFiles:   []string{".*"},
 	}
-	modelSet := models.ExportAllModels()
+	modelSet := glint.ExportAllModels()
 	conf.Languages = make([]*config.Language, 0, len(modelSet))
 	for lang, modelList := range modelSet {
 
