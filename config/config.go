@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/stkali/utility/errors"
-	// "github.com/stkali/utility/log"
 )
 
 const (
@@ -49,6 +48,16 @@ func Validate(conf *Config) error {
 	}
 	if err := IsCompatible(conf.Version); err != nil {
 		return err
+	}
+	for _, lang := range conf.Languages {
+		if lang.Name == "" {
+			return errors.New("language name is empty")
+		}
+		for _, model := range lang.Models {
+			if model.Name == "" {
+				return errors.New("model name is empty")
+			}
+		}
 	}
 	return nil
 }

@@ -1,11 +1,13 @@
 package glint
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/stkali/glint/config"
 	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/errors"
+	"github.com/stkali/utility/log"
 )
 
 var manager = sync.Map{}
@@ -14,7 +16,17 @@ var manager = sync.Map{}
 func InjectModels(lang utils.Language, models ...*Model) error {
 	var lm *langManager
 	if v, ok := manager.Load(lang); !ok {
-		lm = &langManager{ms: make(map[string]*Model, len(models))}
+		extends, err := utils.Extends(lang)
+		if err != nil {
+			return err
+		}
+		lm = &langManager{
+			extends: make(map[string]struct{}, len(extends)),
+			ms:      make(map[string]*Model, len(models)),
+		}
+		for index := range extends {
+			lm.extends[extends[index]] = struct{}{}
+		}
 		if other, ok := manager.LoadOrStore(lang, lm); ok {
 			lm = other.(*langManager)
 		}
@@ -59,53 +71,78 @@ type ModelFuncType func(model *Model, ctx Context)
 
 type langManager struct {
 	sync.Mutex
-	ms map[string]*Model
+	ms      map[string]*Model
+	extends map[string]struct{}
 }
 
 // adds
 func (l *langManager) adds(models ...*Model) error {
-
+	if len(models) == 0 {
+		return nil
+	}
 	l.Lock()
 	defer l.Unlock()
-	for index := range models {
-		if err := l.add(models[index]); err != nil {
-			return err
+	for _, model := range models {
+		if _, ok := l.ms[model.Name]; ok {
+			return errors.Newf("conflict model: %q", model.Name)
+		}
+		l.ms[model.Name] = model
+	}
+	return nil
+}
+
+func (l *langManager) ValidateExtends(extends []string) error {
+	for _, ext := range extends {
+		if _, ok := l.extends[strings.ToLower(ext)]; !ok {
+			return errors.Newf("%q is invalid %s extend suffix name")
 		}
 	}
 	return nil
 }
 
-// add no lock
-func (l *langManager) add(model *Model) error {
-	if _, ok := l.ms[model.Name]; ok {
-		return errors.Newf("conflict model: %q", model.Name)
-	}
-	l.ms[model.Name] = model
-	return nil
-}
-
-// LoadModels
-func LoadModels(lang *config.Language) ([]*Model, error) {
-
-	language := utils.ToLanguage(lang.Name)
-	if language == utils.Unknown {
-		return nil, errors.Newf("unsupport language: %q", lang)
-	}
-	value, ok := manager.Load(language)
+func getLangManager(lang utils.Language) (*langManager, error) {
+	value, ok := manager.Load(lang)
 	if !ok {
 		return nil, errors.Newf("unsupport language: %q", lang)
 	}
-	langManager := value.(*langManager)
+	// validate language extends
+	if langManager, ok := value.(*langManager); ok {
+		return langManager, nil
+	} else {
+		return nil, errors.Newf("this is a bug, failed to assert %s is *langManager")
+	}
+}
+
+// LoadModels ...
+// 如果是非
+func getModels(lang *config.Language) (utils.Language, []*Model, error) {
+
+	language := utils.ToLanguage(lang.Name)
+	if language == utils.Any {
+		log.Infof("not found language: %q, associated language-independent models", lang.Name)
+	}
+	langManager, err := getLangManager(language)
+	if err != nil {
+		return utils.Unknown, nil, err
+	}
+
+	// validate language extends
+	if err := langManager.ValidateExtends(lang.Extends); err != nil {
+		return utils.Unknown, nil, errors.Newf("faield to validate language %q extends, err: %s", lang.Name, err)
+	}
+
 	modelList := make([]*Model, 0, len(lang.Models))
+	log.Infof("lang:%s models: %s", lang.Name, lang.Models)
 	for _, modelConf := range lang.Models {
 		model, ok := langManager.ms[modelConf.Name]
 		if !ok {
-			return nil, errors.Newf("invalid %q language model: %q", language, modelConf.Name)
+			return utils.Unknown, nil, errors.Newf("invalid %q language model: %q", language, modelConf.Name)
 		} else {
 			model.Tags = modelConf.Tags
 			model.Options = modelConf.Options
 			modelList = append(modelList, model)
 		}
 	}
-	return modelList, nil
+	log.Infof("lang:%s modelList: %s", lang.Name, modelList)
+	return language, modelList, nil
 }

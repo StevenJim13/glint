@@ -28,7 +28,7 @@ type Context interface {
 	// Functions returns all function define AST node(s) of file
 	File() string
 	// Lint()
-	Lint(ctx Context)
+	Lint(Outputer, Context)
 	// Functions
 	Functions() []Function
 	// CallExpress
@@ -102,9 +102,9 @@ func (f *FileNode) Functions() []Function {
 }
 
 // Lint implements Context.
-func (f *FileNode) Lint(ctx Context) {
+func (f *FileNode) Lint(output Outputer, ctx Context) {
 	if f.LintFunc != nil {
-		f.LintFunc(ctx)
+		f.LintFunc(output, ctx)
 	}
 }
 
@@ -206,10 +206,6 @@ var langauges = map[utils.Language]*sitter.Language{
 	utils.JavaScript: javascript.GetLanguage(),
 }
 
-type Linter struct {
-	Lang     utils.Language
-	LintFunc LintModels
-}
 
 type FileTree struct {
 	Root     string
