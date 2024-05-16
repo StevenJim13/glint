@@ -1,6 +1,6 @@
 version: 0.1.0
 concurrecy: 1024
-logLevel: error
+logLevel: info
 logFile: ""
 warningDisable: false
 resultFile: ""
@@ -32,7 +32,10 @@ languages:
           charset: utf8
           maxLineLength: 100
           maxLines: 100
-#          newLine: \n
+          newLine: \n
+      - name: Annotate
+        tags:
+          - basic
   - name: "*"
     options: {}
     models:

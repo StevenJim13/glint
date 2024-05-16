@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"github.com/stkali/glint/config"
@@ -42,12 +43,6 @@ func setEnv(conf *config.Config) error {
 	return nil
 }
 
-/*
-	ext   -> 	parser
-				language
-
-*/
-
 // Lint ...
 func Lint(conf *config.Config, project string) error {
 
@@ -60,92 +55,75 @@ func Lint(conf *config.Config, project string) error {
 	// 清理 exclude 规则
 	cleanModels(conf)
 	log.Info("successfully clean models")
-	linter, err := NewGLinter(conf)
+	glinter, err := NewGLinter(conf)
 	if err != nil {
 		return err
 	}
-	log.Infof("successfully create linter: %s", linter)
-	return linter.Lint(project)
+	log.Infof("successfully create glinter: %s", glinter)
+	return glinter.Lint(project)
 }
 
 // Linter ...
 type GLinter struct {
-	conf   *config.Config
-	models map[string]*Linter
-	output Outputer
+	conf       *config.Config
+	dispatcher *Dispatcher
+	output     Outputer
 }
 
+// NewGLinter ...
 func NewGLinter(conf *config.Config) (*GLinter, error) {
 
 	// create outputer
-	outpuer, err := CreateOutput(conf.ResultFile, conf.ResultFormat)
+	outputer, err := CreateOutput(conf.ResultFile, conf.ResultFormat)
 	if err != nil {
 		return nil, err
 	}
+	log.Infof("successfully created outputer: %s", outputer)
+
+	// create dispatcher
+	dispatcher, err := NewDispatcher(conf.Languages)
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("successfully created dispatcher: %s", dispatcher)
 
 	// create glinter
 	glinter := &GLinter{
-		conf:   conf,
-		output: outpuer,
-		models: make(map[string]*Linter, len(conf.Languages)),
+		conf:       conf,
+		output:     outputer,
+		dispatcher: dispatcher,
 	}
 
-	// build linter(s) mapping
-	for _, lang := range conf.Languages {
-		linter := &Linter{
-			Lang: utils.ToLanguage(lang.Name),
-		}
-		modelList, err := LoadModels(lang)
-		if err != nil {
-			return nil, err
-		}
-		linter.LintFunc = makeLintModels(outpuer, modelList...)
-		for i := range lang.Extends {
-			if _, ok := glinter.models[lang.Extends[i]]; ok {
-				return nil, errors.Newf("conflict extends: %q", lang.Extends[i])
-			} else {
-				glinter.models[lang.Extends[i]] = linter
-			}
-		}
-	}
 	return glinter, err
 }
 
 // Lint
-func (l *GLinter) Lint(project string) error {
+func (g *GLinter) Lint(project string) error {
+
+	defer func() {
+		g.output.Flush()
+	}()
 
 	log.Infof("start lint project: %q", project)
 	tree := NewFileTree(project)
-	err := tree.Parse(l.conf.ExcludeFiles, l.conf.ExcludeDirs, l.DispatchLinter)
+	err := tree.Parse(g.conf.ExcludeFiles, g.conf.ExcludeDirs, g.dispatcher.Dispatch)
 	if err != nil {
 		return err
 	}
 	log.Infof("successfully parsed filetree: %s", tree)
-	PreHandleProject(tree)
+	g.PreHandle(tree)
 	log.Infof("successfully pre handle file tree")
-	VisitLint(tree, l.conf.Concurrecy)
+	g.VisitLint(tree, g.conf.Concurrecy)
 	log.Infof("visit file tree")
 	return nil
 }
 
-func (l *GLinter) String() string {
-	return "<Linter>"
-}
-
-func (l *GLinter) DispatchLinter(file string) *Linter {
-	ext := filepath.Ext(file)
-	if lint, ok := l.models[ext]; ok {
-		return lint
-	}
-	return nil
-}
-
-func PreHandleProject(tree *FileTree) {
-
+func (g *GLinter) PreHandle(tree *FileTree) {
+	log.Debugf("pre handle %s", tree)
 }
 
 // VisitLint ...
-func VisitLint(tree *FileTree, concurrecy int) {
+func (g *GLinter) VisitLint(tree *FileTree, concurrecy int) {
 
 	ctxCh := make(chan Context, 1)
 	// 遍历文件树
@@ -165,30 +143,132 @@ func VisitLint(tree *FileTree, concurrecy int) {
 			defer wg.Done()
 			for ctx := range ctxCh {
 				// 检查
-				ctx.Lint(ctx)
+				ctx.Lint(g.output, ctx)
 			}
 		}()
 	}
 	wg.Wait()
+}
 
+func (l *GLinter) String() string {
+	return "<Linter>"
+}
+
+type Dispatcher struct {
+	langModels      map[string]*Linter
+	anonymityModels map[string]*Linter
+	defaultLinter   *Linter
+}
+
+func NewDispatcher(languages []*config.Language) (*Dispatcher, error) {
+	// build linter(s) mapping
+	// 未指定语言的可有存在多个Any
+	// 但是多个 Any 中 extend 是不能重复的
+	// "" 会匹配任意文件
+
+	dispatcher := Dispatcher{
+		langModels:      make(map[string]*Linter),
+		anonymityModels: make(map[string]*Linter),
+	}
+	for _, lang := range languages {
+		linter, err := NewLinter(lang)
+		if err != nil {
+			return nil, err
+		}
+		log.Infof("linter: %s", linter)
+		err = dispatcher.RegisterLinter(linter, lang.Extends...)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &dispatcher, nil
+}
+
+func (d *Dispatcher) RegisterLinter(linter *Linter, extends ...string) error {
+	log.Infof("register; %s", linter)
+	var models map[string]*Linter
+	if linter.Lang == utils.Any {
+		// 不指定扩展名时 默认的匹配所有的文件
+		if len(extends) == 0 {
+			d.defaultLinter = linter
+			return nil
+		}
+		models = d.anonymityModels
+	} else {
+		if len(extends) == 0 {
+			return errors.Error("必须指定扩展名")
+		}
+		models = d.langModels
+	}
+	log.Infof("language: %s models: %s, exts", linter.Lang, models, extends)
+	for _, ext := range extends {
+		if _, ok := models[ext]; !ok {
+			models[ext] = linter
+			log.Infof("register ext: %s to %s", ext, linter.Lang)
+		} else {
+			return errors.Newf("conflict %s extend: %q", linter.Lang, ext)
+		}
+	}
+	return nil
+}
+
+func (d *Dispatcher) Dispatch(file string) *Linter {
+
+	ext := filepath.Ext(file)
+	if lint, ok := d.langModels[ext]; ok {
+		return lint
+	}
+
+	if len(d.anonymityModels) != 0 {
+		if lint, ok := d.anonymityModels[ext]; ok {
+			return lint
+		}
+	}
+	return d.defaultLinter
+}
+
+type LintFuncType func(outpuer Outputer, ctx Context)
+
+type Linter struct {
+	Lang     utils.Language
+	LintFunc LintFuncType
+}
+
+func NewLinter(lang *config.Language) (*Linter, error) {
+
+	language, models, err := getModels(lang)
+	if err != nil {
+		return nil, err
+	}
+
+	lintFunc := func(outpuer Outputer, ctx Context) {
+		log.Debugf("lint: %q", ctx.File())
+		defer func() {
+			log.Debugf("successfully lint %q", ctx.File())
+		}()
+		for _, model := range models {
+			model.ModelFunc(model, ctx)
+		}
+	}
+
+	linter := &Linter{
+		Lang:     language,
+		LintFunc: lintFunc,
+	}
+	return linter, err
 }
 
 // cleanModels 清除那些无用的规则
 func cleanModels(conf *config.Config) {
-
-	existTag := func(tags []string) bool {
-		for index := range tags {
-			if exists(conf.ExcludeTags, tags[index]) {
-				return true
-			}
-		}
-		return false
-	}
 	for _, lang := range conf.Languages {
 		real := 0
 		for index := range lang.Models {
 			model := lang.Models[index]
-			if !exists(conf.ExcludeNames, model.Name) && !existTag(model.Tags) {
+			if model.Name == "" {
+
+			}
+			if !slices.Contains(conf.ExcludeNames, model.Name) &&
+				!slices.ContainsFunc(model.Tags, func(tag string) bool { return slices.Contains(conf.ExcludeTags, tag) }) {
 				if index != real {
 					lang.Models[real] = model
 				}
@@ -196,31 +276,5 @@ func cleanModels(conf *config.Config) {
 			}
 		}
 		lang.Models = lang.Models[:real]
-	}
-}
-
-func exists(s []string, v string) bool {
-	for index := range s {
-		if s[index] == v {
-			return true
-		}
-	}
-	return false
-}
-
-func makeLintModels(output Outputer, models ...*Model) LintModels {
-
-	//
-
-	return func(ctx Context) {
-		file := ctx.File()
-		log.Debugf("handle file: %q", file)
-		defer func() {
-			output.Write(ctx)
-		}()
-		for index := range models {
-			model := models[index]
-			models[index].ModelFunc(model, ctx)
-		}
 	}
 }

@@ -2,6 +2,7 @@
 package glint
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,7 +29,7 @@ type Context interface {
 	// Functions returns all function define AST node(s) of file
 	File() string
 	// Lint()
-	Lint(ctx Context)
+	Lint(Outputer, Context)
 	// Functions
 	Functions() []Function
 	// CallExpress
@@ -36,6 +37,9 @@ type Context interface {
 	// AddDefect
 	Defect(model *Model, row, col int, s string, args ...any)
 	DefectSet() []*Defect
+	ASTTree() *sitter.Tree
+	FileRoot() *FileNode
+	Parent() *FileNode
 }
 
 type Defect struct {
@@ -46,7 +50,7 @@ type Defect struct {
 }
 
 func (d *Defect) String() string {
-	return fmt.Sprintf("model: %q, desc: %s, position:(%d,%d)", *d.Model, d.Desc, d.Row, d.Col)
+	return fmt.Sprintf("model: %q, desc: %s, position:(%d,%d)", *&d.Model.Name, d.Desc, d.Row, d.Col)
 }
 
 type Function struct {
@@ -73,6 +77,62 @@ type FileNode struct {
 	info [][2]int
 	// defects
 	defects []*Defect
+	//
+	ast *sitter.Tree
+	// parent
+	parent *FileNode
+	// root file node
+	root *FileNode
+}
+
+// CreateFileNode 为了测试需要
+func CreateTestFileNode(
+	lang utils.Language,
+	file string,
+	content []byte,
+) *FileNode {
+	node := &FileNode{
+		file:    file,
+		content: content,
+		Linter:  &Linter{Lang: lang},
+	}
+	return node
+}
+
+// ASTTree implements Context.
+func (f *FileNode) ASTTree() *sitter.Tree {
+	if f.ast == nil {
+		parser := sitter.NewParser()
+		parser.SetLanguage(f.Lang.Lang())
+		tree, err := parser.ParseCtx(context.TODO(), nil, f.Content())
+		if err != nil {
+			log.Errorf("failed to parse file %q ast, err:%s", f.file, err)
+		} else {
+			f.ast = tree
+		}
+	}
+	return f.ast
+}
+
+// FileTree implements Context.
+func (f *FileNode) FileRoot() *FileNode {
+	if f.root == nil {
+		f.root = f.getFileRoot()
+	}
+	return f.root
+}
+
+func (f *FileNode) getFileRoot() *FileNode {
+	tmp := f
+	for tmp.parent != nil {
+		tmp = tmp.parent
+	}
+	return tmp
+}
+
+// Parent implements Context.
+func (f *FileNode) Parent() *FileNode {
+	return f.parent
 }
 
 // DefectSet implements Context.
@@ -102,9 +162,9 @@ func (f *FileNode) Functions() []Function {
 }
 
 // Lint implements Context.
-func (f *FileNode) Lint(ctx Context) {
+func (f *FileNode) Lint(output Outputer, ctx Context) {
 	if f.LintFunc != nil {
-		f.LintFunc(ctx)
+		f.LintFunc(output, ctx)
 	}
 }
 
@@ -170,11 +230,12 @@ func (f *FileNode) File() string {
 }
 
 func (f *FileNode) AddChild(node *FileNode) {
+	node.parent = f
 	f.Children = append(f.Children, node)
 }
 
 func (f *FileNode) String() string {
-	return fmt.Sprintf("<Node: %s>", f.File)
+	return fmt.Sprintf("<Node: %s>", f.File())
 }
 
 var _ Context = (*FileNode)(nil)
@@ -204,11 +265,6 @@ var langauges = map[utils.Language]*sitter.Language{
 	utils.Python:     python.GetLanguage(),
 	utils.Java:       java.GetLanguage(),
 	utils.JavaScript: javascript.GetLanguage(),
-}
-
-type Linter struct {
-	Lang     utils.Language
-	LintFunc LintModels
 }
 
 type FileTree struct {
@@ -252,6 +308,10 @@ func (f *FileTree) Walk(fn func(node *FileNode) error) {
 	walk(f.rootNode, fn)
 }
 
+func (f *FileTree) String() string {
+	return fmt.Sprintf("<FileTree: %s>", f.Root)
+}
+
 func walk(node *FileNode, fn func(node *FileNode) error) {
 	fn(node)
 	if len(node.Children) != 0 {
@@ -259,10 +319,6 @@ func walk(node *FileNode, fn func(node *FileNode) error) {
 			walk(node.Children[index], fn)
 		}
 	}
-}
-
-func (f *FileTree) String() string {
-	return fmt.Sprintf("<FileTree: %s>", f.Root)
 }
 
 func buildFileTree(
@@ -366,10 +422,4 @@ func makeExcludeFunc(excludes ...string) (VerifyFileFunc, error) {
 		}
 	}
 	return verify, nil
-}
-
-type LintModels func(ctx Context)
-
-type Matcher interface {
-	Match(file string) *Linter
 }

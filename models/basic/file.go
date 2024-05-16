@@ -6,7 +6,6 @@ import (
 
 	"github.com/stkali/glint/glint"
 	"github.com/stkali/glint/utils"
-	"github.com/stkali/utility/log"
 	"golang.org/x/net/html/charset"
 )
 
@@ -18,7 +17,7 @@ var (
 )
 
 // FileBasic 与语言无关的规则
-var FileBasic = glint.Model{
+var FileBasicModel = glint.Model{
 	Name: "FileBasic",
 	Tags: []string{"basic"},
 	Options: map[string]any{
@@ -28,7 +27,7 @@ var FileBasic = glint.Model{
 		newLineKey:       "\\n",
 	},
 	ModelFunc: func(model *glint.Model, ctx glint.Context) {
-		log.Infof("apply model %q to %s", model.Name, ctx.File())
+
 		var ctt []byte
 		// verify charset
 		if value, ok := model.Options[charsetKey]; ok {

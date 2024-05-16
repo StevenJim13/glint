@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/errors"
 )
 
@@ -14,6 +15,7 @@ type Outputer interface {
 	Flush()
 }
 
+// CreateOutput ...
 func CreateOutput(file, format string) (Outputer, error) {
 
 	var writer io.Writer
@@ -62,7 +64,7 @@ type TextOutput struct {
 
 // Flush implements Outputer.
 func (c *TextOutput) Flush() {
-	panic("unimplemented")
+	utils.Close(c.output)
 }
 
 func NewTextOutput(fd io.Writer) Outputer {

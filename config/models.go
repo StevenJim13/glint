@@ -9,6 +9,10 @@ type Language struct {
 	Models  []Model
 }
 
+func (l Language) String() string {
+	return fmt.Sprintf("<Language: %s, extends:%s>", l.Name, l.Extends)
+}
+
 type Model struct {
 	Name    string
 	Tags    []string

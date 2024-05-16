@@ -8,7 +8,7 @@ var (
 	sensitiveKey = "sensitives"
 )
 
-var SensitiveApi = glint.Model{
+var SensitiveApiModel = glint.Model{
 	Name: "SensitiveApi",
 	Tags: []string{"basic"},
 	Options: map[string]any{

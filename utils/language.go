@@ -95,8 +95,6 @@ func Extends(lang Language) ([]string, error) {
 func ToLanguage(name string) Language {
 
 	switch strings.ToLower(name) {
-	case "*":
-		return Any
 	case "c", "c++", "c/c++", "cpp":
 		return CCpp
 	case "rust", "rt":
@@ -124,7 +122,7 @@ func ToLanguage(name string) Language {
 	case "yaml", "yml":
 		return YAML
 	}
-	return Unknown
+	return Any
 }
 
 var langTable = []*sitter.Language{

@@ -9,10 +9,11 @@ import (
 )
 
 func init() {
-
+	// 匿名语言的规则集合，没有对应的语法解析功能，仅能分析文件内容、文件名、等信息，无法解析语法树。
 	err := glint.InjectModels(utils.Any,
-		&FileBasic,
+		&FileBasicModel,
 	)
+
 	errors.CheckErr(err)
 	log.Infof("successfully injected %s models", utils.CCpp)
 }

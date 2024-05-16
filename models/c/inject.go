@@ -12,8 +12,8 @@ import (
 func init() {
 
 	err := glint.InjectModels(utils.CCpp,
-		&basic.SensitiveApi,
-		&basic.FileBasic,
+		&basic.SensitiveApiModel,
+		&basic.FileBasicModel,
 	)
 	errors.CheckErr(err)
 	log.Infof("successfully injected %s models", utils.CCpp)
