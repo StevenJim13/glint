@@ -1,4 +1,4 @@
-package golang
+package ast
 
 import (
 	sitter "github.com/smacker/go-tree-sitter"
@@ -15,13 +15,12 @@ var (
 
 func init() {
 
-	// 
+	//
 	queryCommentStmt, err = sitter.NewQuery(tool.ToBytes("(comment) @comment"), Language)
 	tool.CheckError("failed to build comment query", err)
 
-	// 
+	//
 	queryFuncDefine, err = sitter.NewQuery(tool.ToBytes(""), Language)
 	tool.CheckError("failed to build function define query", err)
 
-	
 }

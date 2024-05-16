@@ -64,10 +64,10 @@ type Model struct {
 	Name      string
 	Tags      []string
 	Options   map[string]any
-	ModelFunc ModelFuncType
+	GenerateModelFunc func(model *Model) (ModelFuncType, error)
 }
 
-type ModelFuncType func(model *Model, ctx Context)
+type ModelFuncType func(ctx Context)
 
 type langManager struct {
 	sync.Mutex
@@ -132,7 +132,6 @@ func getModels(lang *config.Language) (utils.Language, []*Model, error) {
 	}
 
 	modelList := make([]*Model, 0, len(lang.Models))
-	log.Infof("lang:%s models: %s", lang.Name, lang.Models)
 	for _, modelConf := range lang.Models {
 		model, ok := langManager.ms[modelConf.Name]
 		if !ok {
@@ -143,6 +142,5 @@ func getModels(lang *config.Language) (utils.Language, []*Model, error) {
 			modelList = append(modelList, model)
 		}
 	}
-	log.Infof("lang:%s modelList: %s", lang.Name, modelList)
 	return language, modelList, nil
 }

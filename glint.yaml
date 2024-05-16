@@ -25,26 +25,19 @@ languages:
           sensitives:
             - foo
             - bar
-      - name: FileBasic
-        tags:
-          - basic
-        options:
-          charset: utf8
-          maxLineLength: 100
-          maxLines: 100
-          newLine: \n
-      - name: Annotate
-        tags:
-          - basic
-  - name: "*"
-    options: {}
-    models:
+            - function
       - name: FileBasic
         tags:
           - basic
         options:
           charset: utf-8
           maxLineLength: 120
-          maxLines: 10
+          maxLines: 1200
           newLine: \n
-
+      - name: AnnotateStyle
+        tags:
+          - basic
+        options:
+          allAscii: true
+          disableMulti: false
+          spaceInHead: true

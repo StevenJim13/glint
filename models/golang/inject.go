@@ -13,7 +13,7 @@ func init() {
 	err := glint.InjectModels(utils.GoLang,
 		&basic.SensitiveApiModel,
 		&basic.FileBasicModel,
-		&AnnotateModel,
+		&AnnotateStyleModel,
 	)
 	errors.CheckErr(err)
 	log.Infof("successfully injected %s models", utils.GoLang)

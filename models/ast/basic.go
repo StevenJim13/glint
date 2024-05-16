@@ -46,6 +46,14 @@ func ApplyLevelNodes(node *sitter.Node, fn func(sub *sitter.Node)) {
 	}
 }
 
+// ApplyChildrenNodes ...
+func ApplyChildrenNodes(node *sitter.Node, fn func(sub *sitter.Node)) {
+	count := int(node.ChildCount())
+	for i := 0; i < count; i++ {
+		fn(node.Child(i))
+	}
+}
+
 func InspectNode(node *sitter.Node, content []byte, indent string) {
 	fmt.Printf("%stype: %s, content: %s\n", indent, node.Type(), node.Content(content))
 }
@@ -113,4 +121,12 @@ func BFVisit(node *sitter.Node, f func(node *sitter.Node) int) {
 			}
 		}
 	}
+}
+
+// NodeLines ...
+func NodeLines(node *sitter.Node) int {
+	if node == nil {
+		return 0
+	}
+	return int(node.EndPoint().Row - node.StartPoint().Row)
 }

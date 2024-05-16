@@ -1,7 +1,10 @@
 package basic
 
 import (
+	"reflect"
+
 	"github.com/stkali/glint/glint"
+	"github.com/stkali/utility/errors"
 )
 
 var (
@@ -13,32 +16,35 @@ var SensitiveApiModel = glint.Model{
 	Tags: []string{"basic"},
 	Options: map[string]any{
 		sensitiveKey: []string{
-			"foo", "bar",
+			"foo", "bar", "function",
 		},
 	},
-	ModelFunc: func(model *glint.Model, ctx glint.Context) {
+	GenerateModelFunc: func(model *glint.Model) (glint.ModelFuncType, error) {
 
-		sensitiveFuncs, ok := model.Options[sensitiveKey]
+		value, ok := model.Options[sensitiveKey]
 		if !ok {
-			return
+			return nil, nil
 		}
-		sensList, ok := sensitiveFuncs.([]string)
+		sensitives, ok := value.([]any)
 		if !ok {
-			return
+			return nil, errors.Newf("%s expected []any{} but get %s", sensitiveKey, reflect.TypeOf(value))
 		}
-		// build sensitive api hash table
-		sensHashTable := make(map[string]struct{}, len(sensList))
-		for index := range sensList {
-			sensHashTable[sensList[index]] = struct{}{}
-		}
-
-		for _, call := range ctx.CallExpresses() {
-			if _, ok = sensHashTable[call.Function.Name]; ok {
-				p := call.Function.Position
-				ctx.Defect(model, p[0], p[1],
-					"sensitive api: %q", call.Function.Name,
-				)
+		sensTable := make(map[string]struct{}, len(sensitives))
+		for index := range sensitives {
+			if sen, ok := sensitives[index].(string); ok {
+				sensTable[sen] = struct{}{}
+			} else {
+				return nil, errors.Newf("%s expected item type is string but get %s", reflect.TypeOf(sensitives[index]))
 			}
 		}
+		return func(ctx glint.Context) {
+			for _, call := range ctx.CallExpresses() {
+				if _, ok = sensTable[call.Function.Name()]; ok {
+					ctx.Defect(model, call.Function.Row(), call.Function.Col(),
+						"sensitive api: %q", call.Function.Name,
+					)
+				}
+			}
+		}, nil
 	},
 }

@@ -62,24 +62,27 @@ type TextOutput struct {
 	sync.Mutex
 }
 
+func NewTextOutput(fd io.Writer) Outputer {
+	return &TextOutput{output: fd}
+}
+
 // Flush implements Outputer.
 func (c *TextOutput) Flush() {
 	utils.Close(c.output)
 }
 
-func NewTextOutput(fd io.Writer) Outputer {
-	return &TextOutput{output: fd}
-}
-
-func (c *TextOutput) Write(ctx Context) {
+func (t *TextOutput) Write(ctx Context) {
 	if len(ctx.DefectSet()) == 0 {
 		return
 	}
-	c.Lock()
-	defer c.Unlock()
+	t.Lock()
+	defer t.Unlock()
 	fmt.Println(ctx.File())
 	for id, d := range ctx.DefectSet() {
 		fmt.Printf("%6d|(%4d,%4d) model:%s desc:%s\n", id, d.Row, d.Col, d.Model.Name, d.Desc)
-		fmt.Printf("")
 	}
+}
+
+func (t *TextOutput) String() string {
+	return fmt.Sprintf("<TextOutput: %p>", t.output)
 }
