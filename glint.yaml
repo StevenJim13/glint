@@ -12,6 +12,7 @@ excludeDirs:
   - testdata
 excludeFiles:
   - .*
+  - "*_test.go"
 languages:
   - name: Golang
     options: {}
@@ -41,3 +42,9 @@ languages:
           allAscii: true
           disableMulti: false
           spaceInHead: true
+      - name: MissAnnotate
+        tag:
+          - basic
+        options:
+          noAnnotateFuncLines: 6
+

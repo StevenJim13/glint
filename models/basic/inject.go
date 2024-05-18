@@ -18,5 +18,5 @@ func init() {
 	)
 
 	errors.CheckErr(err)
-	log.Infof("successfully injected %s models", utils.CCpp)
+	log.Infof("successfully injected %s models", utils.Any)
 }

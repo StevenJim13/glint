@@ -93,6 +93,7 @@ func disableMultilineCommentLint(model *glint.Model, text string, point sitter.P
 			"Multi-line comments cannot be used, single-line comments are recommended.")
 	}
 }
+
 func spaceInCommentHeadLint(model *glint.Model, text string, point sitter.Point, ctx glint.Context) {
 	if len(text) > 2 {
 		if char := text[2]; char != ' ' && char != '\n' && char != '\r' {

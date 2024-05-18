@@ -14,6 +14,8 @@ func init() {
 		&basic.SensitiveApiModel,
 		&basic.FileBasicModel,
 		&AnnotateStyleModel,
+		&MissAnnotateModel,
+		&TestModel,
 	)
 	errors.CheckErr(err)
 	log.Infof("successfully injected %s models", utils.GoLang)

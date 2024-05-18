@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -160,4 +162,18 @@ func isGBK(data []byte) bool {
 		}
 	}
 	return true
+}
+
+var (
+	projectURL string = "https://github.com/StKali/glint"
+	owner      string = "clarkmonkey@163.com"
+)
+
+func Bugf(s string, args ...any) {
+	desc := fmt.Sprintf(s, args...)
+	fmt.Fprintf(os.Stderr,
+		`We have encountered a bug: %q,
+	Please contact the developer or submit an issue to help us fix it on github
+	github: %s
+	owner: %s`, desc, projectURL, owner)
 }

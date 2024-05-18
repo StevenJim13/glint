@@ -19,18 +19,35 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
-
-package main
+package cmd
 
 import (
-	"github.com/stkali/glint/cmd"
-	_ "github.com/stkali/glint/models/c"
-	_ "github.com/stkali/glint/models/golang"
-	_ "github.com/stkali/glint/models/python"
+	"fmt"
+
+	"github.com/spf13/cobra"
+	"github.com/stkali/utility/errors"
 )
 
-func main() {
-	cmd.Execute()
+var (
+	langauge string
+)
+var inspectCmd = &cobra.Command{
+	Use:   "inspect",
+	Short: "print models information",
+	Run: func(cmd *cobra.Command, args []string) {
+		if len(args) != 1 {
+			errors.CheckErr(errors.Error("接受一个model参数"))
+		}
+		inspect(langauge, args[0])
+	},
 }
 
-// GOPATH/pkg/mod/
+func init() {
+	rootCmd.AddCommand(inspectCmd)
+	inspectCmd.Flags().StringVarP(&langauge, "language", "l", "", "specify inspect model name")
+	inspectCmd.MarkFlagRequired("language")
+}
+
+func inspect(language string, arg string) {
+	fmt.Println("inspect ", language, " ", arg, " help doc string")
+}

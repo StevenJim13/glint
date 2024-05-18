@@ -119,6 +119,7 @@ func (g *GLinter) Lint(project string) error {
 	return nil
 }
 
+// PreHandle ...
 func (g *GLinter) PreHandle(tree *FileTree) {
 	log.Debugf("pre handle %s", tree)
 }

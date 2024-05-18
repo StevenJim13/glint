@@ -77,9 +77,9 @@ func (t *TextOutput) Write(ctx Context) {
 	}
 	t.Lock()
 	defer t.Unlock()
-	fmt.Println(ctx.File())
+	fmt.Fprintln(t.output, ctx.File())
 	for id, d := range ctx.DefectSet() {
-		fmt.Printf("%6d|(%4d,%4d) model:%s desc:%s\n", id, d.Row, d.Col, d.Model.Name, d.Desc)
+		fmt.Fprintf(t.output, "%6d|(%4d,%4d) model:%s desc:%s\n", id, d.Row, d.Col, d.Model.Name, d.Desc)
 	}
 }
 
