@@ -60,7 +60,7 @@ func (f *FileTree) RootNode() Context {
 	return f.rootNode
 }
 
-func (f *FileTree) AddChild(node Context) {
+func (f *FileTree) AddSubContext(node Context) {
 	if f.rootNode == nil {
 		f.rootNode = node
 		return
@@ -68,12 +68,12 @@ func (f *FileTree) AddChild(node Context) {
 	panic("Tree head node has been set")
 }
 
-func (f *FileTree) Parse(excFiles, excDirs []string, dispatch func(string) *Linter) error {
+func (f *FileTree) Parse(excFiles, excDirs []string, maker *ContextMaker) error {
 	exclude, err := getExclude(excFiles, excDirs)
 	if err != nil {
 		return err
 	}
-	err = buildFileTree(f.Root, f, exclude, dispatch)
+	err = buildFileTree(f.Root, f, exclude, maker)
 	if err != nil {
 		return err
 	}
@@ -91,16 +91,16 @@ func (f *FileTree) String() string {
 
 func walk(ctx Context, fn func(ctx Context) error) {
 	fn(ctx)
-	ctx.RangeChildren(func(ctx Context) {
+	ctx.Range(func(ctx Context) {
 		walk(ctx, fn)
 	})
 }
 
 func buildFileTree(
 	path string,
-	root interface{ AddChild(Context) },
+	root interface{ AddSubContext(Context) },
 	exclude func(string, bool) bool,
-	dispatch func(string) *Linter,
+	maker *ContextMaker,
 ) error {
 
 	info, err := os.Lstat(path)
@@ -111,15 +111,15 @@ func buildFileTree(
 		if exclude(info.Name(), false) {
 			return nil
 		} else {
-			ctx := CreateContext(path, nil)
-			root.AddChild(ctx)
+			ctx := maker.New(path)
+			root.AddSubContext(ctx)
 			dirs, err := os.ReadDir(path)
 			if err != nil {
 				return err
 			}
 			for index := range dirs {
 				subPath := filepath.Join(path, dirs[index].Name())
-				if err := buildFileTree(subPath, ctx, exclude, dispatch); err != nil {
+				if err := buildFileTree(subPath, ctx, exclude, maker); err != nil {
 					return err
 				}
 			}
@@ -130,12 +130,8 @@ func buildFileTree(
 		if exclude(info.Name(), true) {
 			return nil
 		} else {
-			linter := dispatch(info.Name())
-			if linter == nil {
-				return nil
-			}
-			ctx := CreateContext(path, linter)
-			root.AddChild(ctx)
+			ctx := maker.New(info.Name())
+			root.AddSubContext(ctx)
 		}
 	}
 	return nil

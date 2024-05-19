@@ -10,6 +10,10 @@ import (
 	"github.com/stkali/utility/log"
 )
 
+func Register(language *Langauge) {
+
+}
+
 var manager = sync.Map{}
 
 // InjectModels TODO
@@ -61,9 +65,10 @@ func ExportAllModels() map[utils.Language][]*Model {
 }
 
 type Model struct {
-	Name      string
-	Tags      []string
-	Options   map[string]any
+	Name              string
+	Tags              []string
+	Options           map[string]any
+	Inspect           string
 	GenerateModelFunc func(model *Model) (ModelFuncType, error)
 }
 

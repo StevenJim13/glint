@@ -32,7 +32,7 @@ languages:
           - basic
         options:
           charset: utf-8
-          maxLineLength: 120
+          maxLineLength: 100
           maxLines: 1200
           newLine: \n
       - name: AnnotateStyle

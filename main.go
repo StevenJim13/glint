@@ -32,5 +32,3 @@ import (
 func main() {
 	cmd.Execute()
 }
-
-// GOPATH/pkg/mod/

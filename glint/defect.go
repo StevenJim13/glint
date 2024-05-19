@@ -12,3 +12,9 @@ type Defect struct {
 func (d *Defect) String() string {
 	return fmt.Sprintf("model: %q, desc: %s, position:(%d,%d)", *&d.Model.Name, d.Desc, d.Row, d.Col)
 }
+
+// DefectSet ...
+type DefectSet struct {
+	file    *string
+	defects []*Defect
+}

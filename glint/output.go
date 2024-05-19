@@ -1,18 +1,21 @@
 package glint
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
 	"sync"
 
+	"github.com/bytedance/sonic"
 	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/errors"
 )
 
 type Outputer interface {
 	Write(ctx Context)
-	Flush()
+	Close()
+	fmt.Stringer
 }
 
 // CreateOutput ...
@@ -40,21 +43,36 @@ func CreateOutput(file, format string) (Outputer, error) {
 
 type JsonOutput struct {
 	output io.Writer
+	bufWriter *bufio.Writer
+	sync.Mutex
+	encoder sonic.Encoder
 }
 
 func NewJsonOutput(fd io.Writer) Outputer {
-	return &JsonOutput{output: fd}
-}
-
-// Flush implements Outputer.
-func (j *JsonOutput) Flush() {
-	if closer, ok := j.output.(io.Closer); ok {
-		closer.Close()
+	writer := bufio.NewWriter(fd)
+	return &JsonOutput{
+		bufWriter: bufio.NewWriter(fd),
+		encoder: sonic.ConfigDefault.NewEncoder(writer),
+		output:  fd,
 	}
 }
 
+// Flush implements Outputer.
+func (j *JsonOutput) Close() {
+	j.bufWriter.Flush()
+	utils.Close(j.output)
+}
+
 func (j *JsonOutput) Write(ctx Context) {
-	// j.output.Write()
+	if len(ctx.DefectSet()) == 0 {
+		return
+	}
+	j.Lock()
+	defer j.Unlock()
+	v := map[string][]*Defect{
+		ctx.File(): ctx.DefectSet(),
+	}
+	j.encoder.Encode(v)
 }
 
 type TextOutput struct {
@@ -67,7 +85,7 @@ func NewTextOutput(fd io.Writer) Outputer {
 }
 
 // Flush implements Outputer.
-func (c *TextOutput) Flush() {
+func (c *TextOutput) Close() {
 	utils.Close(c.output)
 }
 

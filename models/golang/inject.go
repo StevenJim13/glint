@@ -10,6 +10,15 @@ import (
 )
 
 func init() {
+
+	glint.RegisterLangauge(
+		&glint.Langauge{
+			Models: map[string]*glint.Model{
+				basic.SensitiveApiModel.Name: 
+			},	
+		}
+	)
+
 	err := glint.InjectModels(utils.GoLang,
 		&basic.SensitiveApiModel,
 		&basic.FileBasicModel,

@@ -1,11 +1,21 @@
+/*
+A high-performance static analysis tool that is agnostic to the compiler or runtime environment
+of the language.
+
+1 初始化程序
+2 定义上下文
+3 执行调用
+4 处理成功或失败的结果
+*/
+
 package glint
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/stkali/glint/config"
@@ -14,120 +24,300 @@ import (
 	"github.com/stkali/utility/log"
 )
 
-// setEnv ...
-func setEnv(conf *config.Config) error {
+func init() {
+	log.SetLevel(log.DEBUG)
+	log.SetOutput(os.Stderr)
+	errors.SetWarningPrefixf("%s warning", config.Program)
+	errors.SetErrPrefixf("%s error", config.Program)
+	errors.SetExitHandler(func(err error) {
+		log.Error(err)
+	})
+}
 
-	// validte config
+// setup completion of pre-checks and initialization of the environment.
+// * Checking version compatibility.
+// * Filtering out excluded models.
+// * Setting warnings to disable.
+func setup(conf *config.Config) error {
+
+	// Checking version compatibility and check
 	if err := config.Validate(conf); err != nil {
 		return err
 	}
+
+	// clean exclude model
+	cleanModels(conf)
 
 	// set warning
 	if conf.WarningDisable {
 		errors.DisableWarning()
 	}
-
-	// set log
-	var logWriter io.Writer
-	log.SetLevel(conf.LogLevel)
-	if conf.LogFile == "" {
-		logWriter = os.Stderr
-	} else {
-		if f, err := os.OpenFile(conf.LogFile, os.O_CREATE|os.O_APPEND, os.ModePerm); err != nil {
-			return errors.Newf("cannot open log file: %q, err: %s", conf.LogFile, err)
-		} else {
-			logWriter = f
-		}
-	}
-	log.SetOutput(logWriter)
-
 	return nil
 }
 
-// Lint ...
+// cleanModels 清除那些无用的规则
+func cleanModels(conf *config.Config) {
+	for _, lang := range conf.Languages {
+		real := 0
+		for index := range lang.Models {
+			model := lang.Models[index]
+			if !slices.Contains(conf.ExcludeNames, model.Name) &&
+				!slices.ContainsFunc(model.Tags, func(tag string) bool { return slices.Contains(conf.ExcludeTags, tag) }) {
+				if index != real {
+					lang.Models[real] = model
+				}
+				real += 1
+			}
+		}
+		lang.Models = lang.Models[:real]
+	}
+}
+
+// Lint Creates Glinter and check the given project path.
 func Lint(conf *config.Config, project string) error {
 
 	// init environment
-	if err := setEnv(conf); err != nil {
+	if err := setup(conf); err != nil {
 		return err
 	}
-	log.Info("successfully set lint env")
+	log.Info("successfully setup glint run env")
 
-	// 清理 exclude 规则
-	cleanModels(conf)
-	log.Info("successfully clean models")
+	// create glinter instance
 	glinter, err := NewGLinter(conf)
 	if err != nil {
 		return err
 	}
-	log.Infof("successfully create glinter: %s", glinter)
-	return glinter.Lint(project)
+	log.Infof("successfully created glinter: %s", glinter)
+
+	// check project
+	return glinter.run(project)
 }
 
-// Linter ...
+type SS struct {
+	models        []*Model
+	makeCtxFunc   MakeContextFunc
+	preHandleFunc PreHandlerFunc
+}
+
+// GLinter ...
 type GLinter struct {
-	conf       *config.Config
-	dispatcher *Dispatcher
-	output     Outputer
+	conf *config.Config
+
+	// 分配器，为文件制定不同的检查器，每个文件只能有一个检查器。
+	maker *ContextMaker
+
+	// 输出对象，检查的缺陷将写入output
+	output Outputer
+
+	lints map[string]ModelFuncType
+
+	defaultLint ModelFuncType
+
+	// 需要执行的预先构建
+	prehandlers []PreHandlerFunc
+
+	// 上下文树的根节点
+	ctx Context
 }
 
 // NewGLinter ...
 func NewGLinter(conf *config.Config) (*GLinter, error) {
 
 	// create outputer
-	outputer, err := CreateOutput(conf.ResultFile, conf.ResultFormat)
+	outputer, err := CreateOutput(conf.OutputFile, conf.OutputFormat)
 	if err != nil {
 		return nil, err
 	}
 	log.Infof("successfully created outputer: %s", outputer)
 
-	// create dispatcher
-	dispatcher, err := NewDispatcher(conf.Languages)
+	// create ctx maker
+	ctxMaker, err := NewContextMaker(conf.Languages)
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("successfully created dispatcher: %s", dispatcher)
+
+	log.Infof("successfully created context maker: %s", ctxMaker)
 
 	// create glinter
 	glinter := &GLinter{
-		conf:       conf,
-		output:     outputer,
-		dispatcher: dispatcher,
+		conf:   conf,
+		output: outputer,
+		maker:  ctxMaker,
 	}
-
 	return glinter, err
 }
 
-// Lint
-func (g *GLinter) Lint(project string) error {
+// lint
+func (g *GLinter) run(path string) error {
 
 	defer func() {
-		g.output.Flush()
+		g.output.Close()
+		log.Infof("successfully visited context tree")
 	}()
+	log.Infof("start lint project: %q", path)
 
-	log.Infof("start lint project: %q", project)
-	tree := NewFileTree(project)
-	err := tree.Parse(g.conf.ExcludeFiles, g.conf.ExcludeDirs, g.dispatcher.Dispatch)
+	if err := g.loadProject(path); err != nil {
+		return err
+	}
+	log.Infof("successfully parsed context tree: %s", g.ctx)
+
+	g.PreHandle()
+	log.Infof("successfully pre handle file tree")
+	g.visitLint(tree, g.conf.Concurrecy)
+
+	return nil
+}
+
+// loadModels
+func (g *GLinter) loadModels() error {
+
+	anonymityModels := []*Model{}
+	for _, lang := range g.conf.Languages {
+		meta, err := store.getLangMeta(lang)
+		if err != nil {
+			return err
+		}
+
+		// TODO 冲突检查
+		if g.prehandlers != nil {
+			g.prehandlers = append(g.prehandlers, meta.preHandleFunc)
+		}
+
+		// 未指定后缀名的
+		if len(lang.Extends) == 0 {
+			anonymityModels = append(anonymityModels, meta.models...)
+			continue
+		}
+
+		lint, err := g.makeLint(meta.models)
+		if err != nil {
+			return err
+		}
+		for _, ext := range lang.Extends {
+			if _, ok := g.lints[ext]; ok {
+				return errors.Newf("conflict %s extend: %q", lang.Name, ext)
+			}
+			g.lints[ext] = lint
+		}
+
+		if len(anonymityModels) != 0 {
+			g.defaultLint, err = g.makeLint(anonymityModels)
+			if err != nil {
+				return err
+			}
+
+		}
+	}
+
+	return nil
+}
+
+func (g *GLinter) makeLint(models []*Model) (ModelFuncType, error) {
+
+	lints := make([]ModelFuncType, 0, len(models))
+
+	for _, model := range models {
+		lint, err := model.GenerateModelFunc(model)
+		if err != nil {
+			return nil, errors.Newf("failed to compile model: %q, err: %s", model.Name, err)
+		} else {
+			if lint != nil {
+				lints = append(lints, lint)
+			}
+		}
+	}
+
+	f := func(ctx Context) {
+		log.Debugf("lint: %q", ctx.File())
+		defer func() {
+			g.output.Write(ctx)
+			log.Debugf("successfully lint %q", ctx.File())
+		}()
+		for index := range lints {
+			lints[index](ctx)
+		}
+	}
+	return f, nil
+
+}
+
+func (g *GLinter) createContext(path string) Context {
+	ext := filepath.Ext(path)
+	var f MakeContextFunc
+	ctx := f(path)
+	ctx.Check()
+
+	return nil
+}
+
+// load ...
+func (g *GLinter) loadProject(project string) error {
+	isExclude, err := getExclude(g.conf.ExcludeFiles, g.conf.ExcludeDirs)
 	if err != nil {
 		return err
 	}
-	log.Infof("successfully parsed filetree: %s", tree)
-	g.PreHandle(tree)
-	log.Infof("successfully pre handle file tree")
-	g.VisitLint(tree, g.conf.Concurrecy)
-	log.Infof("visit file tree")
+	emptyCtx.acquire()
+	defer emptyCtx.release()
+	if err = g.buildCtxTree(emptyCtx, project, isExclude); err != nil {
+		return err
+	}
+	if len(emptyCtx.children) != 1 {
+		utils.Bugf("failed to build context tree")
+		return errors.Newf("failed to build Context")
+	} else {
+		g.ctx = emptyCtx.children[0]
+	}
+	return nil
+}
+
+// buildCtxTree ...
+func (g *GLinter) buildCtxTree(ctx Context, path string, exclude func(string, bool) bool) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	fname := info.Name()
+	if info.IsDir() {
+		// exclude directory
+		if exclude(fname, false) {
+			return nil
+		} else {
+			subCtx := g.maker.New(path)
+			ctx.AddSubContext(subCtx)
+			dirs, err := os.ReadDir(path)
+			if err != nil {
+				return err
+			}
+			for index := range dirs {
+				subPath := filepath.Join(path, dirs[index].Name())
+				if err = g.buildCtxTree(subCtx, subPath, exclude); err != nil {
+					return err
+				}
+			}
+		}
+	} else {
+		if exclude(fname, true) {
+			return nil
+		} else {
+			subCtx := g.maker.New(fname)
+			ctx.AddSubContext(subCtx)
+		}
+	}
 	return nil
 }
 
 // PreHandle ...
-func (g *GLinter) PreHandle(tree *FileTree) {
-	log.Debugf("pre handle %s", tree)
+func (g *GLinter) PreHandle() {
+	// 依次调用语言的预处理程序
+	g.PreHandle()
+
 }
 
 // VisitLint ...
-func (g *GLinter) VisitLint(tree *FileTree, concurrecy int) {
+func (g *GLinter) visitLint() {
 
-	ctxCh := make(chan Context, 1)
+	g.ctx.
+		ctxCh := make(chan Context, 1)
 	// 遍历文件树
 	go func() {
 		tree.Walk(func(ctx Context) error {
@@ -137,21 +327,25 @@ func (g *GLinter) VisitLint(tree *FileTree, concurrecy int) {
 		defer close(ctxCh)
 	}()
 	var wg sync.WaitGroup
-	for i := 0; i < concurrecy; i++ {
+	for i := 0; i < g.conf.Concurrecy; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for ctx := range ctxCh {
 				// 检查
-				ctx.Lint(g.output, ctx)
+				ctx.Check(g.output)
 			}
 		}()
 	}
 	wg.Wait()
 }
 
-func (l *GLinter) String() string {
-	return "<Linter>"
+func (g *GLinter) String() string {
+	languags := make([]string, 0, len(g.conf.Languages))
+	for index := range g.conf.Languages {
+		languags = append(languags, g.conf.Languages[index].Name)
+	}
+	return fmt.Sprintf("<GLinter: %s>", strings.Join(languags, ","))
 }
 
 type Dispatcher struct {
@@ -269,22 +463,4 @@ func NewLinter(lang *config.Language) (*Linter, error) {
 
 func (l *Linter) String() string {
 	return fmt.Sprintf("<Linter: %s %p>", l.Lang, l.LintFunc)
-}
-
-// cleanModels 清除那些无用的规则
-func cleanModels(conf *config.Config) {
-	for _, lang := range conf.Languages {
-		real := 0
-		for index := range lang.Models {
-			model := lang.Models[index]
-			if !slices.Contains(conf.ExcludeNames, model.Name) &&
-				!slices.ContainsFunc(model.Tags, func(tag string) bool { return slices.Contains(conf.ExcludeTags, tag) }) {
-				if index != real {
-					lang.Models[real] = model
-				}
-				real += 1
-			}
-		}
-		lang.Models = lang.Models[:real]
-	}
 }
