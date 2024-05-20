@@ -5,6 +5,7 @@ import (
 
 	"github.com/stkali/glint/glint"
 	"github.com/stkali/utility/errors"
+	"github.com/stkali/utility/log"
 )
 
 var (
@@ -19,7 +20,7 @@ var SensitiveApiModel = glint.Model{
 			"foo", "bar", "function",
 		},
 	},
-	GenerateModelFunc: func(model *glint.Model) (glint.ModelFuncType, error) {
+	GenerateModelFunc: func(model *glint.Model) (glint.CheckFuncType, error) {
 
 		value, ok := model.Options[sensitiveKey]
 		if !ok {
@@ -37,14 +38,15 @@ var SensitiveApiModel = glint.Model{
 				return nil, errors.Newf("%s expected item type is string but get %s", reflect.TypeOf(sensitives[index]))
 			}
 		}
-		return func(ctx glint.Context) {
+		return func(ctx glint.Context) error {
+			log.Infof("apply %s model", model.Name)
 			for _, call := range ctx.CallExpresses() {
 				if _, ok = sensTable[call.Function.Name()]; ok {
-					ctx.Defect(model, call.Function.Row(), call.Function.Col(),
-						"sensitive api: %q", call.Function.Name,
-					)
+					glint.AddDefect(ctx, model, call.Function.Row(), call.Function.Col(),
+						"sensitive api: %q", call.Function.Name)
 				}
 			}
+			return nil
 		}, nil
 	},
 }

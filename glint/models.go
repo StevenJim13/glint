@@ -10,10 +10,6 @@ import (
 	"github.com/stkali/utility/log"
 )
 
-func Register(language *Langauge) {
-
-}
-
 var manager = sync.Map{}
 
 // InjectModels TODO
@@ -69,10 +65,10 @@ type Model struct {
 	Tags              []string
 	Options           map[string]any
 	Inspect           string
-	GenerateModelFunc func(model *Model) (ModelFuncType, error)
+	GenerateModelFunc func(model *Model) (CheckFuncType, error)
 }
 
-type ModelFuncType func(ctx Context)
+type CheckFuncType func(ctx Context) error
 
 type langManager struct {
 	sync.Mutex

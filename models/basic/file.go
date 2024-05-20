@@ -4,6 +4,7 @@ import (
 	"github.com/stkali/glint/glint"
 	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/errors"
+	"github.com/stkali/utility/log"
 )
 
 const (
@@ -23,7 +24,7 @@ var FileBasicModel = glint.Model{
 		maxLineLengthKey: 120,
 		newLineKey:       "\\n",
 	},
-	GenerateModelFunc: func(model *glint.Model) (glint.ModelFuncType, error) {
+	GenerateModelFunc: func(model *glint.Model) (glint.CheckFuncType, error) {
 
 		var charset *string
 		v, ok := model.Options[charsetKey]
@@ -68,13 +69,13 @@ var FileBasicModel = glint.Model{
 			}
 		}
 
-		return func(ctx glint.Context) {
-
+		return func(ctx glint.Context) error {
+			log.Infof("apply %s model", model.Name)
 			var content []byte
 			if charset != nil {
 				content = ctx.Content()
 				if actual, ok := utils.VerifyCharset(content, *charset); !ok {
-					ctx.Defect(model, 0, 0,
+					glint.AddDefect(ctx, model, 0, 0,
 						"The expected charset is %q not %q", *charset, actual)
 				}
 			}
@@ -82,38 +83,37 @@ var FileBasicModel = glint.Model{
 			var info glint.LinesInfo
 			if lines != nil {
 				if info == nil {
-					info = ctx.LinesInfo()
+					info = ctx.Lines()
 				}
 				if info.Lines() > *lines {
-					ctx.Defect(model, 0, 0,
-						"Expected %d characters or less per file, but found %d", lines, info.Lines(),
-					)
+					glint.AddDefect(ctx, model, 0, 0,
+						"Expected %d characters or less per file, but found %d", lines, info.Lines())
 				}
 			}
 
 			if length != nil && newline != nil {
 				if info == nil {
-					info = ctx.LinesInfo()
+					info = ctx.Lines()
 				}
 				info.Range(func(index int, line [2]int) bool {
 					if line[0] > *length {
-						ctx.Defect(model, index, line[0],
-							"Expected %d characters or less per line, but found %d", *length, line[0],
-						)
+						glint.AddDefect(ctx, model, index, line[0],
+							"Expected %d characters or less per line, but found %d", *length, line[0])
 					}
 					if line[1] != *newline {
 						if line[1] == -1 {
-							ctx.Defect(model, index, line[0],
+							glint.AddDefect(ctx, model, index, line[0],
 								"Expected to find a blank line at the end of the file, but didn't")
 						} else {
-							ctx.Defect(model, index, line[0],
-								"Expected newline character is %q not %q", newlineChar, utils.NewLineChar(line[1]),
-							)
+							glint.AddDefect(ctx, model, index, line[0],
+								"Expected newline character is %q not %q", newlineChar, utils.NewLineChar(line[1]))
 						}
 					}
 					return true
 				})
 			}
+
+			return nil
 		}, nil
 	},
 }

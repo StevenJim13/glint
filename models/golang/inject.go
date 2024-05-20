@@ -11,21 +11,20 @@ import (
 
 func init() {
 
-	glint.RegisterLangauge(
-		&glint.Langauge{
-			Models: map[string]*glint.Model{
-				basic.SensitiveApiModel.Name: 
-			},	
-		}
-	)
-
-	err := glint.InjectModels(utils.GoLang,
-		&basic.SensitiveApiModel,
-		&basic.FileBasicModel,
-		&AnnotateStyleModel,
-		&MissAnnotateModel,
-		&TestModel,
-	)
+	language := &glint.Langauge{
+		Names:      []string{"golang", "go"},
+		Extends:    []string{".go"},
+		NewConext:  NewContext,
+		Prehandler: PreHandle,
+		Models: []*glint.Model{
+			&basic.SensitiveApiModel,
+			&basic.FileBasicModel,
+			&AnnotateStyleModel,
+			&MissAnnotateModel,
+			&TestModel,
+		},
+	}
+	err := glint.RegisterLangauge(language)
 	errors.CheckErr(err)
 	log.Infof("successfully injected %s models", utils.GoLang)
 }

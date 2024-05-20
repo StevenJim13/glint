@@ -88,7 +88,7 @@ func getConfig(flags *pflag.FlagSet) (*config.Config, error) {
 	}
 
 	dec := yaml.NewDecoder(fd)
-	conf := config.NewConfig()
+	conf := &config.Config{}
 	if err = dec.Decode(conf); err != nil {
 		return nil, errors.Newf("failed to unserialize config-file:%q, err: %s", configFile, err)
 	}
@@ -99,9 +99,9 @@ func getConfig(flags *pflag.FlagSet) (*config.Config, error) {
 		case "concurrency":
 			conf.Concurrecy, nerr = strconv.Atoi(p.Value.String())
 		case "result-format":
-			conf.ResultFormat = p.Value.String()
+			conf.OutputFormat = p.Value.String()
 		case "result-file":
-			conf.ResultFile = p.Value.String()
+			conf.OutputFile = p.Value.String()
 		case "disable-warning":
 			conf.WarningDisable, nerr = strconv.ParseBool(p.Value.String())
 		case "exclude-tags":

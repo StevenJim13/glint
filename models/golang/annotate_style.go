@@ -28,7 +28,7 @@ var AnnotateStyleModel = glint.Model{
 		allAsciiKey: true,
 	},
 	Tags: []string{"basic"},
-	GenerateModelFunc: func(model *glint.Model) (glint.ModelFuncType, error) {
+	GenerateModelFunc: func(model *glint.Model) (glint.CheckFuncType, error) {
 		var lints = []lintCommentType{}
 
 		if value, ok := model.Options[disableMultiKey]; ok {
@@ -59,15 +59,20 @@ var AnnotateStyleModel = glint.Model{
 			return nil, nil
 		}
 
-		return func(ctx glint.Context) {
+		return func(ctx glint.Context) error {
+			tree := ctx.AST()
 
-			root := ctx.ASTTree()
+			if tree == nil {
+				return errors.Error("xxxxxxxxxxxxxxxxxxxxx")
+			}
+			root := tree.RootNode()
 			if root == nil {
-				return
+				return errors.Error("ddddddddddddddddddd")
+
 			}
 			content := ctx.Content()
 			qc := sitter.NewQueryCursor()
-			qc.Exec(queryCommentStmt, ctx.ASTTree().RootNode())
+			qc.Exec(queryCommentStmt, root)
 			for {
 				m, ok := qc.NextMatch()
 				if !ok {
@@ -82,14 +87,14 @@ var AnnotateStyleModel = glint.Model{
 					}
 				}
 			}
-
+			return nil
 		}, nil
 	},
 }
 
 func disableMultilineCommentLint(model *glint.Model, text string, point sitter.Point, ctx glint.Context) {
 	if text[1] == '*' {
-		ctx.Defect(model, int(point.Row), int(point.Column),
+		glint.AddDefect(ctx, model, int(point.Row), int(point.Column),
 			"Multi-line comments cannot be used, single-line comments are recommended.")
 	}
 }
@@ -97,7 +102,7 @@ func disableMultilineCommentLint(model *glint.Model, text string, point sitter.P
 func spaceInCommentHeadLint(model *glint.Model, text string, point sitter.Point, ctx glint.Context) {
 	if len(text) > 2 {
 		if char := text[2]; char != ' ' && char != '\n' && char != '\r' {
-			ctx.Defect(model, int(point.Row), int(point.Column),
+			glint.AddDefect(ctx, model, int(point.Row), int(point.Column),
 				"There must be at least one space between the comment character and the content")
 		}
 	}
@@ -105,7 +110,7 @@ func spaceInCommentHeadLint(model *glint.Model, text string, point sitter.Point,
 
 func pureAsciiLint(model *glint.Model, text string, point sitter.Point, ctx glint.Context) {
 	if !utils.IsPureAscii(text) {
-		ctx.Defect(model, int(point.Row), int(point.Column),
+		glint.AddDefect(ctx, model, int(point.Row), int(point.Column),
 			"There are non-ascii characters in the comment")
 	}
 }

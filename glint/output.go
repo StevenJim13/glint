@@ -2,15 +2,40 @@ package glint
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"sync"
 
-	"github.com/bytedance/sonic"
 	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/errors"
 )
+
+type Defect struct {
+	Model *Model
+	Desc  string
+	Row   int
+	Col   int
+}
+
+func NewDefect(model *Model, row, col int, desc string, args ...any) *Defect {
+	return &Defect{
+		Model: model,
+		Desc:  fmt.Sprintf(desc, args...),
+		Row:   row,
+		Col:   col,
+	}
+}
+
+func (d *Defect) String() string {
+	return fmt.Sprintf("model: %q, desc: %s, position:(%d,%d)", *&d.Model.Name, d.Desc, d.Row, d.Col)
+}
+
+func AddDefect(ctx Context, model *Model, row, col int, desc string, args ...any) {
+	def := NewDefect(model, row, col, desc, args...)
+	ctx.AddDefect(def)
+}
 
 type Outputer interface {
 	Write(ctx Context)
@@ -42,18 +67,23 @@ func CreateOutput(file, format string) (Outputer, error) {
 }
 
 type JsonOutput struct {
-	output io.Writer
+	output    io.Writer
 	bufWriter *bufio.Writer
+	encoder   *json.Encoder
 	sync.Mutex
-	encoder sonic.Encoder
+}
+
+// String implements Outputer.
+func (j *JsonOutput) String() string {
+	return fmt.Sprintf("<JsonOutput: %p>", j.output)
 }
 
 func NewJsonOutput(fd io.Writer) Outputer {
 	writer := bufio.NewWriter(fd)
 	return &JsonOutput{
 		bufWriter: bufio.NewWriter(fd),
-		encoder: sonic.ConfigDefault.NewEncoder(writer),
-		output:  fd,
+		encoder:   json.NewEncoder(writer),
+		output:    fd,
 	}
 }
 
@@ -64,13 +94,13 @@ func (j *JsonOutput) Close() {
 }
 
 func (j *JsonOutput) Write(ctx Context) {
-	if len(ctx.DefectSet()) == 0 {
+	if len(ctx.Defects()) == 0 {
 		return
 	}
 	j.Lock()
 	defer j.Unlock()
 	v := map[string][]*Defect{
-		ctx.File(): ctx.DefectSet(),
+		ctx.Path(): ctx.Defects(),
 	}
 	j.encoder.Encode(v)
 }
@@ -90,13 +120,13 @@ func (c *TextOutput) Close() {
 }
 
 func (t *TextOutput) Write(ctx Context) {
-	if len(ctx.DefectSet()) == 0 {
+	if len(ctx.Defects()) == 0 {
 		return
 	}
 	t.Lock()
 	defer t.Unlock()
-	fmt.Fprintln(t.output, ctx.File())
-	for id, d := range ctx.DefectSet() {
+	fmt.Fprintln(t.output, ctx.Path())
+	for id, d := range ctx.Defects() {
 		fmt.Fprintf(t.output, "%6d|(%4d,%4d) model:%s desc:%s\n", id, d.Row, d.Col, d.Model.Name, d.Desc)
 	}
 }

@@ -1,6 +1,10 @@
 package glint
 
-import sitter "github.com/smacker/go-tree-sitter"
+import (
+	"fmt"
+
+	sitter "github.com/smacker/go-tree-sitter"
+)
 
 type Elementer interface {
 	Name() string

@@ -2,7 +2,6 @@ package glint
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	sitter "github.com/smacker/go-tree-sitter"
@@ -13,7 +12,6 @@ import (
 	"github.com/smacker/go-tree-sitter/python"
 	"github.com/smacker/go-tree-sitter/rust"
 	"github.com/stkali/glint/utils"
-	"github.com/stkali/utility/log"
 	"github.com/stkali/utility/tool"
 )
 
@@ -68,74 +66,74 @@ func (f *FileTree) AddSubContext(node Context) {
 	panic("Tree head node has been set")
 }
 
-func (f *FileTree) Parse(excFiles, excDirs []string, maker *ContextMaker) error {
-	exclude, err := getExclude(excFiles, excDirs)
-	if err != nil {
-		return err
-	}
-	err = buildFileTree(f.Root, f, exclude, maker)
-	if err != nil {
-		return err
-	}
-	log.Infof("successfully to build file tree: %s", f)
-	return nil
-}
+// func (f *FileTree) Parse(excFiles, excDirs []string, maker *ContextMaker) error {
+// 	exclude, err := getExclude(excFiles, excDirs)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	err = buildFileTree(f.Root, f, exclude, maker)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	log.Infof("successfully to build file tree: %s", f)
+// 	return nil
+// }
 
-func (f *FileTree) Walk(fn func(ctx Context) error) {
-	walk(f.rootNode, fn)
-}
+// func (f *FileTree) Walk(fn func(ctx Context) error) {
+// 	walk(f.rootNode, fn)
+// }
 
-func (f *FileTree) String() string {
-	return fmt.Sprintf("<FileTree: %s>", f.Root)
-}
+// func (f *FileTree) String() string {
+// 	return fmt.Sprintf("<FileTree: %s>", f.Root)
+// }
 
-func walk(ctx Context, fn func(ctx Context) error) {
-	fn(ctx)
-	ctx.Range(func(ctx Context) {
-		walk(ctx, fn)
-	})
-}
+// func walk(ctx Context, fn func(ctx Context) error) {
+// 	fn(ctx)
+// 	ctx.Range(func(ctx Context) {
+// 		walk(ctx, fn)
+// 	})
+// }
 
-func buildFileTree(
-	path string,
-	root interface{ AddSubContext(Context) },
-	exclude func(string, bool) bool,
-	maker *ContextMaker,
-) error {
+// func buildFileTree(
+// 	path string,
+// 	root interface{ AddSubContext(Context) },
+// 	exclude func(string, bool) bool,
+// 	maker *ContextMaker,
+// ) error {
 
-	info, err := os.Lstat(path)
-	if err != nil {
-		return err
-	}
-	if info.IsDir() {
-		if exclude(info.Name(), false) {
-			return nil
-		} else {
-			ctx := maker.New(path)
-			root.AddSubContext(ctx)
-			dirs, err := os.ReadDir(path)
-			if err != nil {
-				return err
-			}
-			for index := range dirs {
-				subPath := filepath.Join(path, dirs[index].Name())
-				if err := buildFileTree(subPath, ctx, exclude, maker); err != nil {
-					return err
-				}
-			}
-		}
-	} else {
-		// file
-		// 是否需要被排除
-		if exclude(info.Name(), true) {
-			return nil
-		} else {
-			ctx := maker.New(info.Name())
-			root.AddSubContext(ctx)
-		}
-	}
-	return nil
-}
+// 	info, err := os.Lstat(path)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	if info.IsDir() {
+// 		if exclude(info.Name(), false) {
+// 			return nil
+// 		} else {
+// 			ctx := maker.New(path)
+// 			root.AddSubContext(ctx)
+// 			dirs, err := os.ReadDir(path)
+// 			if err != nil {
+// 				return err
+// 			}
+// 			for index := range dirs {
+// 				subPath := filepath.Join(path, dirs[index].Name())
+// 				if err := buildFileTree(subPath, ctx, exclude, maker); err != nil {
+// 					return err
+// 				}
+// 			}
+// 		}
+// 	} else {
+// 		// file
+// 		// 是否需要被排除
+// 		if exclude(info.Name(), true) {
+// 			return nil
+// 		} else {
+// 			ctx := maker.New(info.Name())
+// 			root.AddSubContext(ctx)
+// 		}
+// 	}
+// 	return nil
+// }
 
 func getExclude(excFiles, excDirs []string) (func(path string, file bool) bool, error) {
 	veriryFile, err := makeExcludeFunc(excFiles...)

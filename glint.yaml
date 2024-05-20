@@ -1,5 +1,5 @@
 version: 0.1.0
-concurrecy: 1024
+concurrecy: 128
 logLevel: info
 logFile: ""
 warningDisable: false
@@ -32,7 +32,7 @@ languages:
           - basic
         options:
           charset: utf-8
-          maxLineLength: 100
+          maxLineLength: 120
           maxLines: 1200
           newLine: \n
       - name: AnnotateStyle
@@ -40,7 +40,7 @@ languages:
           - basic
         options:
           allAscii: true
-          disableMulti: false
+          disableMulti: true
           spaceInHead: true
       - name: MissAnnotate
         tag:

@@ -16,7 +16,7 @@ const (
 
 var TestModel = glint.Model{
 	Name: "Test",
-	GenerateModelFunc: func(model *glint.Model) (glint.ModelFuncType, error) {
+	GenerateModelFunc: func(model *glint.Model) (glint.CheckFuncType, error) {
 		pkgs, err := packages.Load(&packages.Config{
 			Mode: packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
 		}, "/Users/kali/develop/glint")
@@ -29,7 +29,8 @@ var TestModel = glint.Model{
 			fmt.Println("package: ", pkgs[index])
 		}
 
-		return func(ctx glint.Context) {
+		return func(ctx glint.Context) error {
+			return nil
 
 		}, nil
 	},

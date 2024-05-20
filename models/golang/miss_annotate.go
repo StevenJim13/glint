@@ -15,6 +15,7 @@ import (
 	"github.com/stkali/glint/ast"
 	"github.com/stkali/glint/glint"
 	"github.com/stkali/utility/errors"
+	"github.com/stkali/utility/log"
 )
 
 const (
@@ -39,7 +40,7 @@ var MissAnnotateModel = glint.Model{
 		checkMethodKey:         true,
 	},
 	Tags: []string{"basic"},
-	GenerateModelFunc: func(model *glint.Model) (glint.ModelFuncType, error) {
+	GenerateModelFunc: func(model *glint.Model) (glint.CheckFuncType, error) {
 
 		var linesNumber int = 0
 		value, ok := model.Options[noAnnotateFuncLinesKey]
@@ -81,8 +82,8 @@ var MissAnnotateModel = glint.Model{
 			}
 		}
 
-		return func(ctx glint.Context) {
-
+		return func(ctx glint.Context) error {
+			log.Infof("apply %s model", model.Name)
 			// exportable functions
 			content := ctx.Content()
 			for _, function := range ctx.Functions() {
@@ -90,7 +91,7 @@ var MissAnnotateModel = glint.Model{
 					continue
 				}
 				if !isAnnodate(function, content) {
-					ctx.Defect(model, function.Row(), function.Row(),
+					glint.AddDefect(ctx, model, function.Row(), function.Row(),
 						"%q missing function annotate", function.Name())
 				}
 			}
@@ -100,12 +101,12 @@ var MissAnnotateModel = glint.Model{
 				for name, class := range ctx.Classes() {
 
 					if class.Node() != nil && !isAnnodate(class, content) {
-						ctx.Defect(model, class.Row(), class.Col(),
+						glint.AddDefect(ctx, model, class.Row(), class.Col(),
 							"%q missing const annotate", name)
 					}
 					class.RangeMethod(func(method *glint.Method) {
 						if !isAnnodate(method, content) {
-							ctx.Defect(model, method.Row(), method.Col(),
+							glint.AddDefect(ctx, model, method.Row(), method.Col(),
 								"%q missing method annotate", method.Name())
 						}
 					})
@@ -117,7 +118,7 @@ var MissAnnotateModel = glint.Model{
 				// exportable consts
 				for _, cst := range ctx.Consts() {
 					if !isAnnodate(cst, content) {
-						ctx.Defect(model, cst.Row(), cst.Col(),
+						glint.AddDefect(ctx, model, cst.Row(), cst.Col(),
 							"%q missing const annotate", cst.Name())
 					}
 				}
@@ -125,14 +126,14 @@ var MissAnnotateModel = glint.Model{
 
 			if checkVariable {
 				// exportable variables
-				for _, variable := range ctx.Variables() {
+				for _, variable := range ctx.Varibales() {
 					if !isAnnodate(variable, content) {
-						ctx.Defect(model, variable.Row(), variable.Col(),
+						glint.AddDefect(ctx, model, variable.Row(), variable.Col(),
 							"%q missing const annotate", variable.Name())
 					}
 				}
 			}
-
+			return nil
 		}, nil
 	},
 }

@@ -8,7 +8,9 @@ var FunctionModel = glint.Model{
 	Options: map[string]any{
 		"": "",
 	},
-	GenerateModelFunc: func(model *glint.Model) (glint.ModelFuncType, error) {
-		return func(ctx glint.Context) {}, nil
+	GenerateModelFunc: func(model *glint.Model) (glint.CheckFuncType, error) {
+		return func(ctx glint.Context) error {
+			return nil
+		}, nil
 	},
 }

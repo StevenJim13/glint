@@ -175,5 +175,6 @@ func Bugf(s string, args ...any) {
 		`We have encountered a bug: %q,
 	Please contact the developer or submit an issue to help us fix it on github
 	github: %s
-	owner: %s`, desc, projectURL, owner)
+	owner: %s
+`, desc, projectURL, owner)
 }

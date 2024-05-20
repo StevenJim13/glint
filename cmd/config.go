@@ -86,10 +86,8 @@ func generateDefaultConfig() (*config.Config, error) {
 	conf := &config.Config{
 		Version:        config.Version,
 		Concurrecy:     1024,
-		LogLevel:       "error",
-		LogFile:        "",
 		WarningDisable: false,
-		ResultFormat:   "cmd",
+		OutputFormat:   "cmd",
 		ExcludeDirs:    []string{".*", "testdata"},
 		ExcludeFiles:   []string{".*"},
 	}
