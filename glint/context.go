@@ -10,15 +10,18 @@ import (
 
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/stkali/glint/config"
-	"github.com/stkali/glint/utils"
-	"github.com/stkali/utility/log"
 	"github.com/stkali/utility/tool"
 )
 
+type NewContextType func(string, CheckFuncType) Context
+
+type PreHandlerType func(*config.Config, Context) error
+
 type Packager interface {
-	Package() string
-	SetPkgName(name string)
-	AddSubContext(Context)
+	Path() string
+	Name() string
+	SetName(name string)
+	AddContext(Context)
 	Range(func(ctx Context))
 }
 
@@ -33,63 +36,60 @@ type Sourcer interface {
 
 type Filer interface {
 	Path() string
-	Lines() LinesInfo
+	Lines() Lines
 	Content() []byte
-	// Check() error
-	Defects() []*Defect
-	AddDefect(*Defect)
 }
 
 type Context interface {
-	Packager
+	DefectSeter
 	Filer
-	Sourcer
+	fmt.Stringer
 	Check() error
 	HandleErr(error)
-	IsPackage() bool
+	Source() Sourcer
 }
 
-type Pkg struct {
+type Package struct {
+	name string
+	path string
 	children []Context
-	pkg      string
 }
 
-// SetName implements Packager.
-func (p *Pkg) SetPkgName(name string) {
-	p.pkg = name
-}
-
-func NewPackage() *Pkg {
-	return &Pkg{}
-}
-
-// AddSubContext implements Packager.
-func (p *Pkg) AddSubContext(ctx Context) {
+// AddContext implements Packager.
+func (p *Package) AddContext(ctx Context) {
 	p.children = append(p.children, ctx)
 }
 
-// Package implements Packager.
-func (p *Pkg) Package() string {
-	return p.pkg
+// Name implements Packager.
+func (p *Package) Name() string {
+	return p.name
+}
+
+// Path implements Packager.
+func (p *Package) Path() string {
+	return p.path
 }
 
 // Range implements Packager.
-func (p *Pkg) Range(fn func(ctx Context)) {
+func (p *Package) Range(fn func(ctx Context)) {
 	for index := range p.children {
 		fn(p.children[index])
 	}
 }
 
-var _ Packager = (*Pkg)(nil)
+// SetName implements Packager.
+func (p *Package) SetName(name string) {
+	p.name = name
+}
+
+var _ Packager = (*Package)(nil)
 
 // -------------------------------------
 type File struct {
-	path      string
-	linesInfo LinesInfo
-	filetype  utils.Language
-	dir       bool
-	content   []byte
-	defects   []*Defect
+	path    string
+	lines   Lines
+	content []byte
+	DefectSet
 }
 
 func NewFile(path string) *File {
@@ -105,8 +105,8 @@ func (f *File) Path() string {
 //	0  -   \r
 //	1  -   \n
 //	2  -   \r\n
-func (f *File) Lines() LinesInfo {
-	if f.linesInfo == nil {
+func (f *File) Lines() Lines {
+	if f.lines == nil {
 		ctt := f.Content()
 		gap := 0
 		index, length := 0, len(ctt)
@@ -117,31 +117,31 @@ func (f *File) Lines() LinesInfo {
 				if index+1 < length {
 					if ctt[index+1] == '\n' {
 						// \r\n
-						f.linesInfo = append(f.linesInfo, [2]int{lineLength, 2})
+						f.lines = append(f.lines, [2]int{lineLength, 2})
 						index += 1
 						gap = index + 1
 					} else {
 						// \r
-						f.linesInfo = append(f.linesInfo, [2]int{lineLength, 0})
+						f.lines = append(f.lines, [2]int{lineLength, 0})
 						gap = index + 1
 					}
 				} else {
 					// EOF
-					f.linesInfo = append(f.linesInfo, [2]int{lineLength, 0})
+					f.lines = append(f.lines, [2]int{lineLength, 0})
 				}
 			case '\n':
 				lineLength := len(tool.ToString(ctt[gap:index]))
-				f.linesInfo = append(f.linesInfo, [2]int{lineLength, 1})
+				f.lines = append(f.lines, [2]int{lineLength, 1})
 				gap = index + 1
 			}
 			index += 1
 		}
 		if index > gap {
 			lineLength := len(tool.ToString(ctt[gap:index]))
-			f.linesInfo = append(f.linesInfo, [2]int{lineLength, -1})
+			f.lines = append(f.lines, [2]int{lineLength, -1})
 		}
 	}
-	return f.linesInfo
+	return f.lines
 }
 
 func (f *File) Content() []byte {
@@ -155,217 +155,41 @@ func (f *File) Content() []byte {
 	return f.content
 }
 
-// AddDefect implements Context.
-func (f *File) AddDefect(defect *Defect) {
-	f.defects = append(f.defects, defect)
-}
-
-// Defects implements Context.
-func (f *File) Defects() []*Defect {
-	return f.defects
-}
-
 func (f *File) HandleErr(err error) {
 	fmt.Fprintln(os.Stderr, err)
 }
 
 func (f *File) String() string {
-	return fmt.Sprintf("<File Context: %s>", f.path)
+	return fmt.Sprintf("<FileContext: %s>", f.path)
 }
 
-var _ Filer = (*File)(nil)
-
-type PackageContext struct {
-	Pkg
-}
-
-// IsPackage implements Context.
-func (f *PackageContext) IsPackage() bool {
-	return true
-}
-
-// AddDefect implements Context.
-func (f *PackageContext) AddDefect(*Defect) {
-	panic("unimplemented")
-}
-
-// Content implements Context.
-func (f *PackageContext) Content() []byte {
-	panic("unimplemented")
-}
-
-// Defects implements Context.
-func (f *PackageContext) Defects() []*Defect {
-	panic("unimplemented")
-}
-
-// Lines implements Context.
-func (f *PackageContext) Lines() LinesInfo {
-	panic("unimplemented")
-}
-
-// Path implements Context.
-func (f *PackageContext) Path() string {
-	panic("unimplemented")
-}
-
-func NewPackageContext(path string) *PackageContext {
-	pkgCtx := PackageContext{
-		Pkg: *NewPackage(),
-	}
-	return &pkgCtx
-}
-
-// Check implements Context.
-func (f *PackageContext) Check() error {
-	panic("PackageContext should not call the 'Check' method")
-}
-
-// AddDefect implements Context.
-func (f *PackageContext) AST() *sitter.Tree {
-	panic("PackageContext should not call the 'AST' method")
-}
-
-// AddDefect implements Context.
-func (f *PackageContext) CallExpresses() map[string]*CallExpress {
-	panic("PackageContext should not call the 'CallExpresses' method")
-}
-
-// HandleErr implements Context.
-func (f *PackageContext) HandleErr(err error) {
-	log.Error(err)
-}
-
-// Classes implements BaseContext.
-func (f *PackageContext) Classes() map[string]*Class {
-	panic("PackageContext should not call the 'Classes' method")
-}
-
-// Consts implements BaseContext.
-func (f *PackageContext) Consts() map[string]*Const {
-	panic("PackageContext should not call the 'Consts' method")
-}
-
-// Functions implements BaseContext.
-func (f *PackageContext) Functions() map[string]*Function {
-	panic("PackageContext should not call the 'Functions' method")
-}
-
-// Varibales implements BaseContext.
-func (f *PackageContext) Varibales() map[string]*Variable {
-	panic("PackageContext should not call the 'Varibales' method")
-}
-
-var _ Context = (*PackageContext)(nil)
+type Lines [][2]int
 
 type FileContext struct {
 	File
-	check CheckFuncType
-}
-
-// IsPackage implements Context.
-func (f *FileContext) IsPackage() bool {
-	return false
-}
-
-func NewFileContext(path string, check CheckFuncType) *FileContext {
-	file := File{path: path}
-	return &FileContext{File: file, check: check}
-}
-
-// AST implements Context.
-func (f *FileContext) AST() *sitter.Tree {
-	panic("unimplemented")
-}
-
-// AddDefect implements Context.
-// Subtle: this method shadows the method (File).AddDefect of FileContext.File.
-func (f *FileContext) AddDefect(*Defect) {
-	panic("unimplemented")
-}
-
-// AddSubContext implements Context.
-func (f *FileContext) AddSubContext(Context) {
-	panic("unimplemented")
-}
-
-// CallExpresses implements Context.
-func (f *FileContext) CallExpresses() map[string]*CallExpress {
-	panic("unimplemented")
-}
-
-// Check implements Context.
-func (f *FileContext) Check() error {
-	return f.check(f)
-}
-
-// Classes implements Context.
-func (f *FileContext) Classes() map[string]*Class {
-	panic("unimplemented")
-}
-
-// Consts implements Context.
-func (f *FileContext) Consts() map[string]*Const {
-	panic("unimplemented")
-}
-
-// Content implements Context.
-// Subtle: this method shadows the method (File).Content of FileContext.File.
-func (f *FileContext) Content() []byte {
-	panic("unimplemented")
-}
-
-// Defects implements Context.
-// Subtle: this method shadows the method (File).Defects of FileContext.File.
-func (f *FileContext) Defects() []*Defect {
-	panic("unimplemented")
-}
-
-// Functions implements Context.
-func (f *FileContext) Functions() map[string]*Function {
-	panic("unimplemented")
-}
-
-// HandleErr implements Context.
-// Subtle: this method shadows the method (File).HandleErr of FileContext.File.
-func (f *FileContext) HandleErr(error) {
-	panic("unimplemented")
-}
-
-// Lines implements Context.
-// Subtle: this method shadows the method (File).Lines of FileContext.File.
-func (f *FileContext) Lines() LinesInfo {
-	panic("unimplemented")
-}
-
-// Package implements Context.
-func (f *FileContext) Package() string {
-	panic("unimplemented")
-}
-
-// Path implements Context.
-// Subtle: this method shadows the method (File).Path of FileContext.File.
-func (f *FileContext) Path() string {
-	panic("unimplemented")
-}
-
-// Range implements Context.
-func (f *FileContext) Range(func(ctx Context)) {
-	panic("unimplemented")
-}
-
-// SetName implements Context.
-func (f *FileContext) SetPkgName(name string) {
-	panic("unimplemented")
-}
-
-// Varibales implements Context.
-func (f *FileContext) Varibales() map[string]*Variable {
-	panic("unimplemented")
+	check     CheckFuncType
+	handleErr func(error)
 }
 
 var _ Context = (*FileContext)(nil)
 
-type NewContextType func(string, CheckFuncType) Context
+func NewFileContext(file string, check CheckFuncType) Context {
+	filepath := File{path: file}
+	ctx := &FileContext{
+		File:  filepath,
+		check: check,
+	}
+	return ctx
+}
 
-type PreHandlerType func(*config.Config, Context) error
+func (f *FileContext) HandleErr(err error) {
+	f.handleErr(err)
+}
+
+func (f *FileContext) Check() error {
+	return f.check(f)
+}
+
+func (f *FileContext) Source() Sourcer {
+	return nil
+}

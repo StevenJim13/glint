@@ -12,6 +12,25 @@ import (
 	"github.com/stkali/utility/errors"
 )
 
+type DefectSeter interface {
+	AddDefect(*Defect)
+	Defects() []*Defect
+}
+
+type DefectSet []*Defect
+
+// AddDefect implements DefectSeter.
+func (d DefectSet) AddDefect(defect *Defect) {
+	d = append(d, defect)
+}
+
+// Defects implements DefectSeter.
+func (d DefectSet) Defects() []*Defect {
+	return d
+}
+
+var _ DefectSeter = (*DefectSet)(nil)
+
 type Defect struct {
 	Model *Model
 	Desc  string
