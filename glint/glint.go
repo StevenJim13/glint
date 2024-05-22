@@ -19,7 +19,6 @@ import (
 	"sync"
 
 	"github.com/stkali/glint/config"
-	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/errors"
 	"github.com/stkali/utility/log"
 	"github.com/stkali/utility/tool"
@@ -27,7 +26,9 @@ import (
 )
 
 func init() {
-	log.SetLevel(log.WARN)
+
+	level := log.ToLevelWithDefault(os.Getenv("GLINT_LOG_LEVEL"), log.INFO)
+	log.SetLevel(level)
 	log.SetOutput(os.Stderr)
 	errors.SetWarningPrefixf("%s warning", config.Program)
 	errors.SetErrPrefixf("%s error", config.Program)
@@ -95,6 +96,65 @@ func Lint(conf *config.Config, project string) error {
 	return glinter.run(tool.ToAbsPath(project))
 }
 
+// getExclude TODO
+func getExclude(excFiles, excDirs []string) (func(path string, file bool) bool, error) {
+
+	if len(excFiles) == 0 && len(excDirs) == 0 {
+		return func(path string, file bool) bool { return false }, nil
+	}
+
+	veriryFile, err := makeExcludeFunc(excFiles...)
+	if err != nil {
+		return nil, err
+	}
+
+	verifyDir, err := makeExcludeFunc(excDirs...)
+	if err != nil {
+		return nil, err
+	}
+	if verifyDir == nil && veriryFile == nil {
+		return func(path string, file bool) bool { return false }, nil
+	}
+	return func(path string, file bool) bool {
+		if file && veriryFile != nil {
+			return veriryFile(path)
+		} else if verifyDir != nil {
+			return verifyDir(path)
+		}
+		return false
+	}, nil
+}
+
+type VerifyFileFunc func(path string) bool
+
+func makeExcludeFunc(excludes ...string) (VerifyFileFunc, error) {
+	var verify VerifyFileFunc
+	switch len(excludes) {
+	case 0:
+	case 1:
+		verify = func(path string) bool {
+			if ok, err := filepath.Match(excludes[0], path); err != nil {
+				panic(err)
+			} else {
+				return ok
+			}
+		}
+
+	default:
+		verify = func(path string) bool {
+			for index := range excludes {
+				if ok, err := filepath.Match(excludes[index], path); err != nil {
+					panic(err)
+				} else if ok {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return verify, nil
+}
+
 // GLinter ...
 type GLinter struct {
 	conf *config.Config
@@ -113,7 +173,7 @@ type GLinter struct {
 	prehandlers []PreHandlerType
 
 	// 上下文树的根节点
-	ctx Context
+	pkg Packager
 }
 
 // NewGLinter ...
@@ -151,7 +211,7 @@ func (g *GLinter) run(path string) error {
 	if err := g.loadProject(path); err != nil {
 		return err
 	}
-	log.Infof("successfully parsed context tree: %s", g.ctx)
+	log.Infof("successfully parsed context tree: %s", g.pkg)
 
 	g.PreHandle()
 	log.Infof("successfully pre handle file tree")
@@ -270,21 +330,15 @@ func (g *GLinter) loadProject(path string) error {
 	if err != nil {
 		return err
 	}
-	pkg := NewPackage()
-	if err = g.buildCtxTree(pkg, path, isExclude); err != nil {
+	g.pkg = NewPackage("root")
+	if err = g.buildCtxTree(g.pkg, path, isExclude); err != nil {
 		return err
-	}
-	if len(pkg.children) != 1 {
-		utils.Bugf("failed to build context tree")
-		return errors.Newf("failed to build Context")
-	} else {
-		g.ctx = pkg.children[0]
 	}
 	return nil
 }
 
 // buildCtxTree ...
-func (g *GLinter) buildCtxTree(ctx Packager, path string, exclude func(string, bool) bool) error {
+func (g *GLinter) buildCtxTree(pkg Packager, path string, exclude func(string, bool) bool) error {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return err
@@ -295,15 +349,15 @@ func (g *GLinter) buildCtxTree(ctx Packager, path string, exclude func(string, b
 		if exclude(fname, false) {
 			return nil
 		} else {
-			subCtx := NewPackageContext(path)
-			ctx.AddSubContext(subCtx)
+			subPackage := NewPackage(path)
+			pkg.AddPackage(subPackage)
 			dirs, err := os.ReadDir(path)
 			if err != nil {
 				return err
 			}
 			for index := range dirs {
 				subPath := filepath.Join(path, dirs[index].Name())
-				if err = g.buildCtxTree(subCtx, subPath, exclude); err != nil {
+				if err = g.buildCtxTree(subPackage, subPath, exclude); err != nil {
 					return err
 				}
 			}
@@ -314,7 +368,7 @@ func (g *GLinter) buildCtxTree(ctx Packager, path string, exclude func(string, b
 		} else {
 			subCtx := g.makeContext(path)
 			if subCtx != nil {
-				ctx.AddSubContext(subCtx)
+				pkg.AddContext(subCtx)
 			}
 		}
 	}
@@ -327,12 +381,12 @@ func (g *GLinter) PreHandle() error {
 	case 0:
 		return nil
 	case 1:
-		return g.prehandlers[0](g.conf, g.ctx)
+		return g.prehandlers[0](g.conf, g.pkg)
 	default:
 		var ge *errgroup.Group
 		for index := range g.prehandlers {
 			ge.Go(func() error {
-				return g.prehandlers[index](g.conf, g.ctx)
+				return g.prehandlers[index](g.conf, g.pkg)
 			})
 
 		}
@@ -340,18 +394,8 @@ func (g *GLinter) PreHandle() error {
 	}
 }
 
-func (g *GLinter) rall(ctx Context, fn func(ctx Context)) {
-	fn(ctx)
-	if ctx.IsPackage() {
-		ctx.Range(func(subCtx Context) {
-			g.rall(subCtx, fn)
-		})
-	}
-}
-
 // VisitLint ...
 func (g *GLinter) visitLint() error {
-
 	ctxCh := make(chan Context, 1)
 	var wg sync.WaitGroup
 	var err error
@@ -360,14 +404,11 @@ func (g *GLinter) visitLint() error {
 		go func() {
 			defer wg.Done()
 			for ctx := range ctxCh {
-				if !ctx.IsPackage() {
-					err = errors.Join(err, ctx.Check())
-				}
+				err = errors.Join(err, ctx.Check())
 			}
 		}()
 	}
-
-	g.rall(g.ctx, func(ctx Context) {
+	g.pkg.Walk(func(ctx Context) {
 		ctxCh <- ctx
 	})
 	close(ctxCh)

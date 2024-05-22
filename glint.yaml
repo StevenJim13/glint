@@ -1,7 +1,5 @@
 version: 0.1.0
 concurrecy: 128
-logLevel: info
-logFile: ""
 warningDisable: false
 resultFile: ""
 resultFormat: cmd
@@ -9,7 +7,6 @@ excludetags: []
 excludenames: []
 excludeDirs:
   - .*
-  - testdata
 excludeFiles:
   - .*
   - "*_test.go"

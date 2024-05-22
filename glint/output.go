@@ -10,6 +10,7 @@ import (
 
 	"github.com/stkali/glint/utils"
 	"github.com/stkali/utility/errors"
+	"github.com/stkali/utility/log"
 )
 
 type DefectSeter interface {
@@ -17,16 +18,18 @@ type DefectSeter interface {
 	Defects() []*Defect
 }
 
-type DefectSet []*Defect
+type DefectSet struct {
+	ds []*Defect
+}
 
 // AddDefect implements DefectSeter.
-func (d DefectSet) AddDefect(defect *Defect) {
-	d = append(d, defect)
+func (d *DefectSet) AddDefect(defect *Defect) {
+	d.ds = append(d.ds, defect)
 }
 
 // Defects implements DefectSeter.
-func (d DefectSet) Defects() []*Defect {
-	return d
+func (d *DefectSet) Defects() []*Defect {
+	return d.ds
 }
 
 var _ DefectSeter = (*DefectSet)(nil)
@@ -125,21 +128,30 @@ func (j *JsonOutput) Write(ctx Context) {
 }
 
 type TextOutput struct {
-	output io.Writer
+	output    io.Writer
+	bufWriter *bufio.Writer
+	encoder   *json.Encoder
 	sync.Mutex
 }
 
 func NewTextOutput(fd io.Writer) Outputer {
-	return &TextOutput{output: fd}
+	writer := bufio.NewWriter(fd)
+	return &TextOutput{
+		bufWriter: bufio.NewWriter(fd),
+		encoder:   json.NewEncoder(writer),
+		output:    fd,
+	}
 }
 
 // Flush implements Outputer.
 func (c *TextOutput) Close() {
+	c.bufWriter.Flush()
 	utils.Close(c.output)
 }
 
 func (t *TextOutput) Write(ctx Context) {
 	if len(ctx.Defects()) == 0 {
+		log.Info(ctx.Path(), " no defect")
 		return
 	}
 	t.Lock()

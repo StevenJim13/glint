@@ -13,3 +13,5 @@ func (t *T) Lint(project string) error {
 func (t *TS) Lint(project string) error {
 	return nil
 }
+
+# too lang line xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx

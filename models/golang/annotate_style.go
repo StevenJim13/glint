@@ -60,15 +60,15 @@ var AnnotateStyleModel = glint.Model{
 		}
 
 		return func(ctx glint.Context) error {
-			tree := ctx.AST()
 
-			if tree == nil {
-				return errors.Error("xxxxxxxxxxxxxxxxxxxxx")
+			source := ctx.Source()
+			if source == nil {
+				return errors.Newf("failed to ...")
 			}
-			root := tree.RootNode()
-			if root == nil {
-				return errors.Error("ddddddddddddddddddd")
 
+			root := source.Root()
+			if root == nil {
+				return errors.Error("faile to ........")
 			}
 			content := ctx.Content()
 			qc := sitter.NewQueryCursor()

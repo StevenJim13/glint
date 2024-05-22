@@ -85,8 +85,14 @@ var MissAnnotateModel = glint.Model{
 		return func(ctx glint.Context) error {
 			log.Infof("apply %s model", model.Name)
 			// exportable functions
+
+			source := ctx.Source()
+			if source == nil {
+				return errors.Newf("failed to ...")
+			}
+
 			content := ctx.Content()
-			for _, function := range ctx.Functions() {
+			for _, function := range source.Functions() {
 				if linesNumber != 0 && ast.NodeLines(function.Node()) > linesNumber {
 					continue
 				}
@@ -98,7 +104,7 @@ var MissAnnotateModel = glint.Model{
 
 			if checkClass {
 				// exportable classes
-				for name, class := range ctx.Classes() {
+				for name, class := range source.Classes() {
 
 					if class.Node() != nil && !isAnnodate(class, content) {
 						glint.AddDefect(ctx, model, class.Row(), class.Col(),
@@ -116,7 +122,7 @@ var MissAnnotateModel = glint.Model{
 			if checkConst {
 
 				// exportable consts
-				for _, cst := range ctx.Consts() {
+				for _, cst := range source.Consts() {
 					if !isAnnodate(cst, content) {
 						glint.AddDefect(ctx, model, cst.Row(), cst.Col(),
 							"%q missing const annotate", cst.Name())
@@ -126,7 +132,7 @@ var MissAnnotateModel = glint.Model{
 
 			if checkVariable {
 				// exportable variables
-				for _, variable := range ctx.Varibales() {
+				for _, variable := range source.Varibales() {
 					if !isAnnodate(variable, content) {
 						glint.AddDefect(ctx, model, variable.Row(), variable.Col(),
 							"%q missing const annotate", variable.Name())

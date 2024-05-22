@@ -40,7 +40,12 @@ var SensitiveApiModel = glint.Model{
 		}
 		return func(ctx glint.Context) error {
 			log.Infof("apply %s model", model.Name)
-			for _, call := range ctx.CallExpresses() {
+			source := ctx.Source()
+			if source == nil {
+				return errors.Newf("failed to get %q source", ctx.Path())
+			}
+
+			for _, call := range source.CallExpresses() {
 				if _, ok = sensTable[call.Function.Name()]; ok {
 					glint.AddDefect(ctx, model, call.Function.Row(), call.Function.Col(),
 						"sensitive api: %q", call.Function.Name)

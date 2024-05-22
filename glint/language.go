@@ -7,7 +7,6 @@ import (
 
 	"github.com/stkali/glint/config"
 	"github.com/stkali/utility/errors"
-	"github.com/stkali/utility/log"
 )
 
 type Langauge struct {
@@ -71,7 +70,6 @@ func (l *LangStore) register(lang *Langauge) error {
 
 	for _, name := range lang.Names {
 		name := strings.ToLower(name)
-		log.Info(l, l.lm)
 		l.lm[name] = lang
 	}
 	lang.modelsMapping = make(map[string]*Model, len(lang.Models))

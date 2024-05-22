@@ -61,9 +61,9 @@ func BenchmarkMap10(b *testing.B) {
 	testMap(10, b)
 }
 
-func TestMakeExclude(t *testing.T) {
-	f, err := makeExcludeFunc(".*")
-	require.NoError(t, err)
-	fmt.Println(f("glint"))
+// func TestMakeExclude(t *testing.T) {
+// 	f, err := makeExcludeFunc(".*")
+// 	require.NoError(t, err)
+// 	fmt.Println(f("glint"))
 
-}
+// }

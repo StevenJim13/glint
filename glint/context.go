@@ -10,23 +10,29 @@ import (
 
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/stkali/glint/config"
+	"github.com/stkali/utility/log"
 	"github.com/stkali/utility/tool"
 )
 
 type NewContextType func(string, CheckFuncType) Context
 
-type PreHandlerType func(*config.Config, Context) error
+type PreHandlerType func(*config.Config, Packager) error
 
 type Packager interface {
 	Path() string
 	Name() string
 	SetName(name string)
 	AddContext(Context)
+	AddPackage(Packager)
 	Range(func(ctx Context))
+	RangePackages(func(pkg Packager))
+	Walk(fn func(ctx Context))
+	fmt.Stringer
 }
 
 type Sourcer interface {
-	AST() *sitter.Tree
+	Tree() *sitter.Tree
+	Root() *sitter.Node
 	Functions() map[string]*Function
 	Classes() map[string]*Class
 	CallExpresses() map[string]*CallExpress
@@ -47,17 +53,49 @@ type Context interface {
 	Check() error
 	HandleErr(error)
 	Source() Sourcer
+	Package() Packager
+	LinkPackage(Packager)
 }
 
 type Package struct {
-	name string
-	path string
+	name     string
+	path     string
 	children []Context
+	packages []Packager
+}
+
+// AddPackage implements Packager.
+func (p *Package) AddPackage(pkg Packager) {
+	p.packages = append(p.packages, pkg)
+}
+
+// RangePackages implements Packager.
+func (p *Package) RangePackages(fn func(pkg Packager)) {
+	for index := range p.packages {
+		fn(p.packages[index])
+	}
 }
 
 // AddContext implements Packager.
 func (p *Package) AddContext(ctx Context) {
+	log.Info(ctx)
+	ctx.LinkPackage(p)
 	p.children = append(p.children, ctx)
+}
+
+// Range implements Packager.
+func (p *Package) Range(fn func(ctx Context)) {
+	for index := range p.children {
+		fn(p.children[index])
+	}
+}
+
+// SetName implements Packager.
+func (p *Package) Walk(fn func(ctx Context)) {
+	p.Range(fn)
+	p.RangePackages(func(pkg Packager) {
+		pkg.Walk(fn)
+	})
 }
 
 // Name implements Packager.
@@ -70,16 +108,23 @@ func (p *Package) Path() string {
 	return p.path
 }
 
-// Range implements Packager.
-func (p *Package) Range(fn func(ctx Context)) {
-	for index := range p.children {
-		fn(p.children[index])
-	}
-}
-
 // SetName implements Packager.
 func (p *Package) SetName(name string) {
 	p.name = name
+}
+
+// SetName implements Packager.
+func (p *Package) String() string {
+	if p.name != "" {
+		return fmt.Sprintf("<Package: %s>", p.name)
+	}
+	return fmt.Sprintf("<Package: %s>", p.path)
+}
+
+func NewPackage(path string) Packager {
+	return &Package{
+		path: path,
+	}
 }
 
 var _ Packager = (*Package)(nil)
@@ -89,6 +134,7 @@ type File struct {
 	path    string
 	lines   Lines
 	content []byte
+	pkg     Packager
 	DefectSet
 }
 
@@ -157,6 +203,15 @@ func (f *File) Content() []byte {
 
 func (f *File) HandleErr(err error) {
 	fmt.Fprintln(os.Stderr, err)
+	panic(err)
+}
+
+func (f *File) Package() Packager {
+	return f.pkg
+}
+
+func (f *File) LinkPackage(pkg Packager) {
+	f.pkg = pkg
 }
 
 func (f *File) String() string {
@@ -164,6 +219,14 @@ func (f *File) String() string {
 }
 
 type Lines [][2]int
+
+func (l Lines) Range(fn func(index int, item [2]int) bool) {
+	for index, item := range l {
+		if !fn(index, item) {
+			return
+		}
+	}
+}
 
 type FileContext struct {
 	File

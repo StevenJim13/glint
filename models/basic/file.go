@@ -70,7 +70,9 @@ var FileBasicModel = glint.Model{
 		}
 
 		return func(ctx glint.Context) error {
+
 			log.Infof("apply %s model", model.Name)
+
 			var content []byte
 			if charset != nil {
 				content = ctx.Content()
@@ -80,14 +82,14 @@ var FileBasicModel = glint.Model{
 				}
 			}
 
-			var info glint.LinesInfo
+			var info glint.Lines
 			if lines != nil {
 				if info == nil {
 					info = ctx.Lines()
 				}
-				if info.Lines() > *lines {
+				if length := len(info); length > *lines {
 					glint.AddDefect(ctx, model, 0, 0,
-						"Expected %d characters or less per file, but found %d", lines, info.Lines())
+						"Expected %d characters or less per file, but found %d", lines, length)
 				}
 			}
 
