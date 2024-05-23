@@ -93,27 +93,27 @@ var MissAnnotateModel = glint.Model{
 
 			content := ctx.Content()
 			for _, function := range source.Functions() {
-				if linesNumber != 0 && ast.NodeLines(function.Node()) > linesNumber {
+				if linesNumber != 0 && ast.NodeLines(function.Node) > linesNumber {
 					continue
 				}
-				if !isAnnodate(function, content) {
+				if !isAnnodate(function.Name, function.Node, content) {
 					glint.AddDefect(ctx, model, function.Row(), function.Row(),
-						"%q missing function annotate", function.Name())
+						"%q missing function annotate", function.Name)
 				}
 			}
 
 			if checkClass {
 				// exportable classes
-				for name, class := range source.Classes() {
+				for name, class := range source.Types() {
 
-					if class.Node() != nil && !isAnnodate(class, content) {
+					if class.Node != nil && !isAnnodate(class.Name, class.Node, content) {
 						glint.AddDefect(ctx, model, class.Row(), class.Col(),
 							"%q missing const annotate", name)
 					}
 					class.RangeMethod(func(method *glint.Method) {
-						if !isAnnodate(method, content) {
+						if !isAnnodate(method.Name, method.Node, content) {
 							glint.AddDefect(ctx, model, method.Row(), method.Col(),
-								"%q missing method annotate", method.Name())
+								"%q missing method annotate", method.Name)
 						}
 					})
 				}
@@ -123,9 +123,9 @@ var MissAnnotateModel = glint.Model{
 
 				// exportable consts
 				for _, cst := range source.Consts() {
-					if !isAnnodate(cst, content) {
+					if !isAnnodate(cst.Name, cst.Node, content) {
 						glint.AddDefect(ctx, model, cst.Row(), cst.Col(),
-							"%q missing const annotate", cst.Name())
+							"%q missing const annotate", cst.Name)
 					}
 				}
 			}
@@ -133,9 +133,9 @@ var MissAnnotateModel = glint.Model{
 			if checkVariable {
 				// exportable variables
 				for _, variable := range source.Varibales() {
-					if !isAnnodate(variable, content) {
+					if !isAnnodate(variable.Name, variable.Node, content) {
 						glint.AddDefect(ctx, model, variable.Row(), variable.Col(),
-							"%q missing const annotate", variable.Name())
+							"%q missing const annotate", variable.Name)
 					}
 				}
 			}
@@ -152,13 +152,11 @@ const (
 	Name string = "111"
 )
 
-func isAnnodate(elem glint.Elementer, content []byte) bool {
-	name := elem.Name()
-
+func isAnnodate(name string, node *sitter.Node, content []byte) bool {
 	if name[0] < 'A' || name[0] > 'Z' {
 		return true
 	}
-	if pre := elem.Node().PrevSibling(); pre.Type() == "comment" {
+	if pre := node.PrevSibling(); pre.Type() == "comment" {
 		header := ast.QueryCommentHeader(pre, func(n *sitter.Node) bool { return n.Type() == "comment" })
 		if annotateBy(header.Content(content), name) {
 			return true

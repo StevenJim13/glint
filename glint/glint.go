@@ -330,7 +330,7 @@ func (g *GLinter) loadProject(path string) error {
 	if err != nil {
 		return err
 	}
-	g.pkg = NewPackage("root")
+	g.pkg = NewPackage("root", true)
 	if err = g.buildCtxTree(g.pkg, path, isExclude); err != nil {
 		return err
 	}
@@ -349,7 +349,7 @@ func (g *GLinter) buildCtxTree(pkg Packager, path string, exclude func(string, b
 		if exclude(fname, false) {
 			return nil
 		} else {
-			subPackage := NewPackage(path)
+			subPackage := NewPackage(path, false)
 			pkg.AddPackage(subPackage)
 			dirs, err := os.ReadDir(path)
 			if err != nil {

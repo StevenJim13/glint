@@ -28,16 +28,17 @@ type Packager interface {
 	RangePackages(func(pkg Packager))
 	Walk(fn func(ctx Context))
 	fmt.Stringer
+	IsVirtual() bool
 }
 
 type Sourcer interface {
 	Tree() *sitter.Tree
 	Root() *sitter.Node
 	Functions() map[string]*Function
-	Classes() map[string]*Class
-	CallExpresses() map[string]*CallExpress
-	Consts() map[string]*Const
-	Varibales() map[string]*Variable
+	Types() map[string]*Type
+	Calls() map[string]*Call
+	Consts() map[string]*Value
+	Varibales() map[string]*Value
 }
 
 type Filer interface {
@@ -62,6 +63,7 @@ type Package struct {
 	path     string
 	children []Context
 	packages []Packager
+	virtual  bool
 }
 
 // AddPackage implements Packager.
@@ -121,9 +123,14 @@ func (p *Package) String() string {
 	return fmt.Sprintf("<Package: %s>", p.path)
 }
 
-func NewPackage(path string) Packager {
+func (p *Package) IsVirtual() bool {
+	return p.virtual
+}
+
+func NewPackage(path string, virtual bool) *Package {
 	return &Package{
 		path: path,
+		virtual: virtual,
 	}
 }
 
